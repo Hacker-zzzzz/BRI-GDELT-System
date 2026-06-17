@@ -1,15 +1,23 @@
 package edu.course.brigdelt.ui;
 
 import edu.course.brigdelt.config.AppPaths;
+import edu.course.brigdelt.domain.ImportResult;
+import edu.course.brigdelt.repository.DatabaseManager;
+import edu.course.brigdelt.service.GdeltImportService;
 import javafx.collections.FXCollections;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -17,7 +25,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Window;
 
+import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -49,7 +61,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.1 展示骨架 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.2 数据导入 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -106,7 +118,7 @@ public class MainView {
         modules.getSelectionModel().selectFirst();
         VBox.setVgrow(modules, Priority.ALWAYS);
 
-        Label hint = new Label("占位界面用于答辩演示，不连接真实业务数据。");
+        Label hint = new Label("数据导入已接入，其余模块保留答辩展示占位。");
         hint.getStyleClass().add("sidebar-hint");
         hint.setWrapText(true);
 
@@ -115,9 +127,11 @@ public class MainView {
     }
 
     private void showPage(PageSpec page) {
-        Parent content = "首页仪表盘".equals(page.title())
-                ? createDashboardPage(page)
-                : createPlaceholderPage(page);
+        Parent content = switch (page.title()) {
+            case "首页仪表盘" -> createDashboardPage(page);
+            case "数据导入" -> createImportPage(page);
+            default -> createPlaceholderPage(page);
+        };
         contentHost.getChildren().setAll(content);
     }
 
@@ -137,6 +151,125 @@ public class MainView {
                 "导入批次概览、事件数量统计、合作热度趋势、风险提示摘要");
 
         body.getChildren().addAll(cards, pathGrid, placeholder);
+        return wrapScrollable(body);
+    }
+
+    private Parent createImportPage(PageSpec page) {
+        VBox body = createPageBase(page.title(), page.description());
+
+        VBox importBox = new VBox(14);
+        importBox.getStyleClass().add("import-box");
+
+        Label fileLabel = new Label("导入文件");
+        fileLabel.getStyleClass().add("form-label");
+
+        TextField filePathField = new TextField();
+        filePathField.setPromptText("请选择或输入 GDELT 数据文件路径（csv、tsv、zip）");
+        HBox.setHgrow(filePathField, Priority.ALWAYS);
+
+        Button chooseButton = new Button("选择文件");
+        chooseButton.getStyleClass().add("secondary-button");
+
+        Button importButton = new Button("开始导入");
+        importButton.getStyleClass().add("primary-button");
+
+        HBox fileRow = new HBox(10, filePathField, chooseButton, importButton);
+        fileRow.setAlignment(Pos.CENTER_LEFT);
+
+        ProgressBar progressBar = new ProgressBar();
+        progressBar.getStyleClass().add("import-progress");
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+
+        Label statusText = new Label("请选择文件后开始导入。");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        TextArea resultSummary = new TextArea("暂无导入结果。");
+        resultSummary.getStyleClass().add("result-summary");
+        resultSummary.setEditable(false);
+        resultSummary.setWrapText(true);
+        resultSummary.setPrefRowCount(8);
+
+        TextArea errorSamples = new TextArea("暂无错误样例。");
+        errorSamples.getStyleClass().add("error-samples");
+        errorSamples.setEditable(false);
+        errorSamples.setWrapText(true);
+        errorSamples.setPrefRowCount(8);
+
+        chooseButton.setOnAction(event -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("选择 GDELT 导入文件");
+            fileChooser.getExtensionFilters().addAll(
+                    new FileChooser.ExtensionFilter("GDELT 文件", "*.csv", "*.CSV", "*.tsv", "*.zip"),
+                    new FileChooser.ExtensionFilter("CSV 文件", "*.csv", "*.CSV"),
+                    new FileChooser.ExtensionFilter("TSV 文件", "*.tsv"),
+                    new FileChooser.ExtensionFilter("ZIP 压缩包", "*.zip")
+            );
+            File selectedFile = fileChooser.showOpenDialog(currentWindow());
+            if (selectedFile != null) {
+                filePathField.setText(selectedFile.toPath().toString());
+                statusText.setText("已选择文件：" + selectedFile.getName());
+            }
+        });
+
+        importButton.setOnAction(event -> {
+            String rawPath = filePathField.getText() == null ? "" : filePathField.getText().trim();
+            if (rawPath.isEmpty()) {
+                statusText.setText("请先选择或输入要导入的文件路径。");
+                return;
+            }
+
+            Path selectedPath = Path.of(rawPath);
+            Task<ImportResult> importTask = new Task<>() {
+                @Override
+                protected ImportResult call() {
+                    return new GdeltImportService(new DatabaseManager(paths)).importFile(selectedPath);
+                }
+            };
+
+            chooseButton.setDisable(true);
+            importButton.setDisable(true);
+            filePathField.setDisable(true);
+            progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            progressBar.setVisible(true);
+            progressBar.setManaged(true);
+            statusText.setText("正在后台导入，请稍候...");
+            resultSummary.setText("导入任务运行中。");
+            errorSamples.setText("暂无错误样例。");
+
+            importTask.setOnSucceeded(workerEvent -> {
+                ImportResult result = importTask.getValue();
+                statusText.setText("导入完成：" + result.displaySummary());
+                resultSummary.setText(formatImportResult(result));
+                errorSamples.setText(formatErrorSamples(result));
+                restoreImportControls(chooseButton, importButton, filePathField, progressBar);
+            });
+            importTask.setOnFailed(workerEvent -> {
+                Throwable exception = importTask.getException();
+                statusText.setText("导入失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+                resultSummary.setText("导入任务异常终止，未返回导入结果。");
+                errorSamples.setText(exception == null ? "无异常详情。" : exception.toString());
+                restoreImportControls(chooseButton, importButton, filePathField, progressBar);
+            });
+
+            Thread thread = new Thread(importTask, "gdelt-import-task");
+            thread.setDaemon(true);
+            thread.start();
+        });
+
+        importBox.getChildren().addAll(fileLabel, fileRow, progressBar, statusText);
+
+        HBox resultRow = new HBox(14);
+        resultRow.getStyleClass().add("import-result-row");
+        VBox summaryBox = createTextPanel("导入结果摘要", resultSummary);
+        VBox errorBox = createTextPanel("错误样例", errorSamples);
+        resultRow.getChildren().addAll(summaryBox, errorBox);
+        HBox.setHgrow(summaryBox, Priority.ALWAYS);
+        HBox.setHgrow(errorBox, Priority.ALWAYS);
+
+        body.getChildren().addAll(importBox, resultRow);
         return wrapScrollable(body);
     }
 
@@ -211,6 +344,65 @@ public class MainView {
 
         box.getChildren().addAll(title, detail);
         return box;
+    }
+
+    private VBox createTextPanel(String titleText, TextArea textArea) {
+        VBox box = new VBox(10);
+        box.getStyleClass().add("text-panel");
+
+        Label title = new Label(titleText);
+        title.getStyleClass().add("placeholder-title");
+
+        VBox.setVgrow(textArea, Priority.ALWAYS);
+        box.getChildren().addAll(title, textArea);
+        return box;
+    }
+
+    private String formatImportResult(ImportResult result) {
+        return """
+                文件名：%s
+                totalRows：%d
+                successRows：%d
+                skippedRows：%d
+                insertedRows：%d
+                status：%s
+                duration：%d ms
+                errorSummary：%s
+                """.formatted(
+                result.fileName(),
+                result.totalRows(),
+                result.successRows(),
+                result.skippedRows(),
+                result.insertedRows(),
+                result.status(),
+                result.durationMillis(),
+                result.errorSummary()
+        );
+    }
+
+    private String formatErrorSamples(ImportResult result) {
+        if (result.errorSamples().isEmpty()) {
+            return "无错误样例。";
+        }
+        StringBuilder builder = new StringBuilder();
+        List<String> samples = result.errorSamples();
+        for (int index = 0; index < samples.size(); index++) {
+            builder.append(index + 1).append(". ").append(samples.get(index)).append(System.lineSeparator());
+        }
+        return builder.toString();
+    }
+
+    private void restoreImportControls(Button chooseButton, Button importButton, TextField filePathField,
+                                       ProgressBar progressBar) {
+        chooseButton.setDisable(false);
+        importButton.setDisable(false);
+        filePathField.setDisable(false);
+        progressBar.setVisible(false);
+        progressBar.setManaged(false);
+    }
+
+    private Window currentWindow() {
+        return contentHost.getScene() == null ? null : contentHost.getScene().getWindow();
     }
 
     private GridPane createPathGrid() {

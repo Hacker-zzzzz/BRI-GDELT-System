@@ -7,7 +7,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Persists country configuration into SQLite.
@@ -86,6 +89,21 @@ public class CountryRepository {
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("国家查询失败：" + cameoCode, exception);
+        }
+    }
+
+    public Set<String> findAllCameoCodes() {
+        String sql = "SELECT cameo_code FROM countries WHERE cameo_code IS NOT NULL AND TRIM(cameo_code) <> ''";
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            Set<String> cameoCodes = new HashSet<>();
+            while (resultSet.next()) {
+                cameoCodes.add(resultSet.getString("cameo_code").trim().toUpperCase(Locale.ROOT));
+            }
+            return cameoCodes;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("国家 CAMEO code 查询失败。", exception);
         }
     }
 
