@@ -31,6 +31,7 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -89,7 +90,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.6 合作与风险分析 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.7 展示增强 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -146,7 +147,7 @@ public class MainView {
         modules.getSelectionModel().selectFirst();
         VBox.setVgrow(modules, Priority.ALWAYS);
 
-        Label hint = new Label("数据导入已接入，其余模块保留答辩展示占位。");
+        Label hint = new Label("核心链路已接入：导入、查询、双边关系、合作态势、风险评估。");
         hint.getStyleClass().add("sidebar-hint");
         hint.setWrapText(true);
 
@@ -211,21 +212,27 @@ public class MainView {
         monthlyTrendChart.setLegendVisible(false);
         monthlyTrendChart.setCreateSymbols(true);
 
+        Label dashboardInsight = new Label("等待数据加载后生成总体研判。");
+        dashboardInsight.getStyleClass().add("insight-text");
+        dashboardInsight.setWrapText(true);
+        VBox insightPanel = createInsightPanel("总体研判摘要", dashboardInsight);
+
         HBox chartRow = new HBox(14,
                 wrapChart(typePieChart),
                 wrapChart(topCountryChart)
         );
         chartRow.getStyleClass().add("chart-row");
 
-        body.getChildren().addAll(statusText, firstRow, secondRow, chartRow, wrapChart(monthlyTrendChart));
+        body.getChildren().addAll(statusText, firstRow, secondRow, insightPanel, chartRow, wrapChart(monthlyTrendChart));
         loadDashboard(statusText, countryValue, eventValue, cooperationValue, conflictValue, importValue,
-                mentionValue, goldsteinValue, toneValue, typePieChart, topCountryChart, monthlyTrendChart);
+                mentionValue, goldsteinValue, toneValue, dashboardInsight,
+                typePieChart, topCountryChart, monthlyTrendChart);
         return wrapScrollable(body);
     }
 
     private void loadDashboard(Label statusText, Label countryValue, Label eventValue, Label cooperationValue,
                                Label conflictValue, Label importValue, Label mentionValue, Label goldsteinValue,
-                               Label toneValue, PieChart typePieChart,
+                               Label toneValue, Label dashboardInsight, PieChart typePieChart,
                                BarChart<String, Number> topCountryChart,
                                LineChart<String, Number> monthlyTrendChart) {
         Task<DashboardViewData> task = new Task<>() {
@@ -253,6 +260,7 @@ public class MainView {
             updateTypePieChart(typePieChart, summary);
             updateTopCountryChart(topCountryChart, data.topCountries());
             updateMonthlyTrendChart(monthlyTrendChart, data.monthlyTrend());
+            dashboardInsight.setText(buildDashboardInsight(summary, data.topCountries(), data.monthlyTrend()));
             statusText.setText(summary.totalEvents() == 0
                     ? "暂无事件数据。请先通过数据导入或演示数据库准备分线写入数据。"
                     : "仪表盘已加载：" + summary.totalEvents() + " 条事件，"
@@ -273,6 +281,26 @@ public class MainView {
         VBox.setVgrow(chart, Priority.ALWAYS);
         HBox.setHgrow(box, Priority.ALWAYS);
         return box;
+    }
+
+    private VBox createInsightPanel(String titleText, Node content) {
+        VBox box = new VBox(8);
+        box.getStyleClass().add("insight-panel");
+
+        Label title = new Label(titleText);
+        title.getStyleClass().add("insight-title");
+        box.getChildren().addAll(title, content);
+        HBox.setHgrow(box, Priority.ALWAYS);
+        return box;
+    }
+
+    private VBox createFormulaPanel(String titleText, String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("insight-text");
+        label.setWrapText(true);
+        VBox panel = createInsightPanel(titleText, label);
+        panel.getStyleClass().add("formula-panel");
+        return panel;
     }
 
     private void updateTypePieChart(PieChart chart, DashboardSummary summary) {
@@ -297,6 +325,49 @@ public class MainView {
             series.getData().add(new XYChart.Data<>(point.month(), point.totalEvents()));
         }
         chart.getData().setAll(series);
+    }
+
+    private String buildDashboardInsight(DashboardSummary summary, List<CountryEventStat> topCountries,
+                                         List<MonthlyTrendPoint> monthlyTrend) {
+        if (summary.totalEvents() == 0) {
+            return "当前数据库尚无事件记录。完成真实 GDELT 数据导入后，首页将自动汇总事件结构、国家热度和月度趋势。";
+        }
+        String leadingCountry = topCountries.isEmpty() ? "暂无" : topCountries.get(0).countryCode();
+        String latestMonth = monthlyTrend.isEmpty() ? "暂无月份" : monthlyTrend.get(monthlyTrend.size() - 1).month();
+        double cooperationRatio = summary.totalEvents() == 0 ? 0 : (double) summary.cooperationEvents() / summary.totalEvents();
+        double conflictRatio = summary.totalEvents() == 0 ? 0 : (double) summary.conflictEvents() / summary.totalEvents();
+        return "当前样本覆盖 " + summary.countryCount() + " 个配置国家，事件热度最高国家为 " + leadingCountry
+                + "。合作事件占比 " + formatPercent(cooperationRatio)
+                + "，冲突事件占比 " + formatPercent(conflictRatio)
+                + "，最新趋势月份为 " + latestMonth
+                + "。平均 Goldstein 与 AvgTone 可用于解释总体关系强度和媒体语调。";
+    }
+
+    private String buildCooperationInsight(List<CooperationScore> scores) {
+        if (scores.isEmpty()) {
+            return "暂无合作事件聚合结果。导入真实数据后可比较沿线国家合作热度、媒体关注度和合作质量。";
+        }
+        CooperationScore top = scores.get(0);
+        int totalCooperation = scores.stream().mapToInt(CooperationScore::cooperationEvents).sum();
+        return "合作指数最高国家为 " + top.countryCode()
+                + "，指数 " + "%.1f".formatted(top.cooperationIndex())
+                + "。当前排名国家合计合作事件 " + totalCooperation
+                + " 条，可在答辩中用于说明合作热点国家和合作分布差异。";
+    }
+
+    private String buildRiskInsight(List<RiskAssessment> risks) {
+        if (risks.isEmpty()) {
+            return "暂无风险聚合结果。导入真实数据后可根据冲突占比、负向语调和事件强度形成预警排序。";
+        }
+        RiskAssessment top = risks.get(0);
+        long highRiskCountries = risks.stream()
+                .filter(risk -> "高".equals(risk.riskLevel()) || "极高".equals(risk.riskLevel()))
+                .count();
+        return "风险指数最高国家为 " + top.countryCode()
+                + "，指数 " + "%.1f".formatted(top.riskIndex())
+                + "，等级为" + top.riskLevel()
+                + "。当前列表中高风险及以上国家 " + highRiskCountries
+                + " 个，可作为后续重点解释和事件溯源对象。";
     }
 
     private Parent createImportPage(PageSpec page) {
@@ -561,6 +632,13 @@ public class MainView {
                 createMetricCard("合作事件合计", totalCooperationValue, "排名国家合作事件总和", "neutral-card")
         );
 
+        Label insightText = new Label("等待合作排名加载后生成研判。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("合作态势研判", insightText);
+        VBox formulaPanel = createFormulaPanel("合作指数口径",
+                "合作指数 = 合作事件量 + 正向 Goldstein + 正向媒体语调 + 媒体关注度 - 冲突扣分，归一到 0-100。该口径适合课堂答辩解释“合作热度”和“合作质量”。");
+
         TableView<CooperationScore> table = createCooperationTable();
         ObservableList<CooperationScore> items = FXCollections.observableArrayList();
         table.setItems(items);
@@ -576,6 +654,7 @@ public class MainView {
             List<CooperationScore> results = task.getValue();
             items.setAll(results);
             updateCooperationMetrics(results, countryValue, topCountryValue, topIndexValue, totalCooperationValue);
+            insightText.setText(buildCooperationInsight(results));
             statusText.setText(results.isEmpty()
                     ? "暂无合作态势数据。"
                     : "合作态势排名已加载，共显示 " + results.size() + " 个国家。");
@@ -588,7 +667,8 @@ public class MainView {
         thread.setDaemon(true);
         thread.start();
 
-        body.getChildren().addAll(statusText, metricRow, createSectionTitle("合作指数国家排名"), table);
+        body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
+                createSectionTitle("合作指数国家排名"), table);
         VBox.setVgrow(table, Priority.ALWAYS);
         return wrapScrollable(body);
     }
@@ -613,6 +693,13 @@ public class MainView {
                 createMetricCard("高风险国家", highRiskValue, "风险等级为高或极高", "negative-card")
         );
 
+        Label insightText = new Label("等待风险排名加载后生成研判。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("风险态势研判", insightText);
+        VBox formulaPanel = createFormulaPanel("风险指数口径",
+                "风险指数 = 冲突占比 + 负向 Goldstein + 负向媒体语调 + 冲突事件量，归一到 0-100，并划分为低、中、高、极高四档。");
+
         TableView<RiskAssessment> table = createRiskTable();
         ObservableList<RiskAssessment> items = FXCollections.observableArrayList();
         table.setItems(items);
@@ -628,6 +715,7 @@ public class MainView {
             List<RiskAssessment> results = task.getValue();
             items.setAll(results);
             updateRiskMetrics(results, countryValue, topCountryValue, topIndexValue, highRiskValue);
+            insightText.setText(buildRiskInsight(results));
             statusText.setText(results.isEmpty()
                     ? "暂无风险评估数据。"
                     : "风险评估排名已加载，共显示 " + results.size() + " 个国家。");
@@ -640,7 +728,8 @@ public class MainView {
         thread.setDaemon(true);
         thread.start();
 
-        body.getChildren().addAll(statusText, metricRow, createSectionTitle("风险指数国家排名"), table);
+        body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
+                createSectionTitle("风险指数国家排名"), table);
         VBox.setVgrow(table, Priority.ALWAYS);
         return wrapScrollable(body);
     }
