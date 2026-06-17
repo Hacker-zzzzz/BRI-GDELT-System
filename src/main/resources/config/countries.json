@@ -1,60 +1,398 @@
 {
-  "version": "0.1",
-  "description": "基础一带一路国家配置模板。后续阶段可扩展到完整沿线国家清单。",
+  "schemaVersion": "1.0",
+  "description": "Belt and Road country metadata used by the BRI-GDELT analysis system. CAMEO codes are used to match GDELT Actor1/Actor2 country fields.",
   "regions": [
     {
       "code": "EAST_ASIA",
       "nameCn": "东亚",
-      "countries": [
-        { "cameoCode": "CHN", "isoCode": "CN", "nameCn": "中国", "nameEn": "China", "latitude": 35.8617, "longitude": 104.1954 },
-        { "cameoCode": "MNG", "isoCode": "MN", "nameCn": "蒙古", "nameEn": "Mongolia", "latitude": 46.8625, "longitude": 103.8467 }
-      ]
+      "nameEn": "East Asia"
     },
     {
       "code": "SOUTHEAST_ASIA",
       "nameCn": "东南亚",
-      "countries": [
-        { "cameoCode": "IDN", "isoCode": "ID", "nameCn": "印度尼西亚", "nameEn": "Indonesia", "latitude": -0.7893, "longitude": 113.9213 },
-        { "cameoCode": "MYS", "isoCode": "MY", "nameCn": "马来西亚", "nameEn": "Malaysia", "latitude": 4.2105, "longitude": 101.9758 },
-        { "cameoCode": "THA", "isoCode": "TH", "nameCn": "泰国", "nameEn": "Thailand", "latitude": 15.8700, "longitude": 100.9925 },
-        { "cameoCode": "VNM", "isoCode": "VN", "nameCn": "越南", "nameEn": "Vietnam", "latitude": 14.0583, "longitude": 108.2772 }
-      ]
+      "nameEn": "Southeast Asia"
+    },
+    {
+      "code": "SOUTH_ASIA",
+      "nameCn": "南亚",
+      "nameEn": "South Asia"
     },
     {
       "code": "CENTRAL_ASIA",
       "nameCn": "中亚",
-      "countries": [
-        { "cameoCode": "KAZ", "isoCode": "KZ", "nameCn": "哈萨克斯坦", "nameEn": "Kazakhstan", "latitude": 48.0196, "longitude": 66.9237 },
-        { "cameoCode": "UZB", "isoCode": "UZ", "nameCn": "乌兹别克斯坦", "nameEn": "Uzbekistan", "latitude": 41.3775, "longitude": 64.5853 },
-        { "cameoCode": "KGZ", "isoCode": "KG", "nameCn": "吉尔吉斯斯坦", "nameEn": "Kyrgyzstan", "latitude": 41.2044, "longitude": 74.7661 }
-      ]
+      "nameEn": "Central Asia"
     },
     {
       "code": "MIDDLE_EAST",
       "nameCn": "中东",
-      "countries": [
-        { "cameoCode": "IRN", "isoCode": "IR", "nameCn": "伊朗", "nameEn": "Iran", "latitude": 32.4279, "longitude": 53.6880 },
-        { "cameoCode": "SAU", "isoCode": "SA", "nameCn": "沙特阿拉伯", "nameEn": "Saudi Arabia", "latitude": 23.8859, "longitude": 45.0792 },
-        { "cameoCode": "TUR", "isoCode": "TR", "nameCn": "土耳其", "nameEn": "Turkey", "latitude": 38.9637, "longitude": 35.2433 }
-      ]
+      "nameEn": "Middle East"
     },
     {
-      "code": "EASTERN_EUROPE",
-      "nameCn": "东欧",
-      "countries": [
-        { "cameoCode": "RUS", "isoCode": "RU", "nameCn": "俄罗斯", "nameEn": "Russia", "latitude": 61.5240, "longitude": 105.3188 },
-        { "cameoCode": "POL", "isoCode": "PL", "nameCn": "波兰", "nameEn": "Poland", "latitude": 51.9194, "longitude": 19.1451 },
-        { "cameoCode": "HUN", "isoCode": "HU", "nameCn": "匈牙利", "nameEn": "Hungary", "latitude": 47.1625, "longitude": 19.5033 }
-      ]
+      "code": "EUROPE",
+      "nameCn": "欧洲",
+      "nameEn": "Europe"
     },
     {
       "code": "AFRICA",
       "nameCn": "非洲",
-      "countries": [
-        { "cameoCode": "EGY", "isoCode": "EG", "nameCn": "埃及", "nameEn": "Egypt", "latitude": 26.8206, "longitude": 30.8025 },
-        { "cameoCode": "KEN", "isoCode": "KE", "nameCn": "肯尼亚", "nameEn": "Kenya", "latitude": -0.0236, "longitude": 37.9062 },
-        { "cameoCode": "ETH", "isoCode": "ET", "nameCn": "埃塞俄比亚", "nameEn": "Ethiopia", "latitude": 9.1450, "longitude": 40.4897 }
-      ]
+      "nameEn": "Africa"
+    },
+    {
+      "code": "OCEANIA",
+      "nameCn": "大洋洲",
+      "nameEn": "Oceania"
+    }
+  ],
+  "countries": [
+    {
+      "cameoCode": "CHN",
+      "isoCode": "CN",
+      "nameCn": "中国",
+      "nameEn": "China",
+      "region": "EAST_ASIA",
+      "latitude": 35.8617,
+      "longitude": 104.1954,
+      "isCoreCountry": true
+    },
+    {
+      "cameoCode": "IDN",
+      "isoCode": "ID",
+      "nameCn": "印度尼西亚",
+      "nameEn": "Indonesia",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": -0.7893,
+      "longitude": 113.9213,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MYS",
+      "isoCode": "MY",
+      "nameCn": "马来西亚",
+      "nameEn": "Malaysia",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 4.2105,
+      "longitude": 101.9758,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "THA",
+      "isoCode": "TH",
+      "nameCn": "泰国",
+      "nameEn": "Thailand",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 15.87,
+      "longitude": 100.9925,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "VNM",
+      "isoCode": "VN",
+      "nameCn": "越南",
+      "nameEn": "Vietnam",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 14.0583,
+      "longitude": 108.2772,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SGP",
+      "isoCode": "SG",
+      "nameCn": "新加坡",
+      "nameEn": "Singapore",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 1.3521,
+      "longitude": 103.8198,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PHL",
+      "isoCode": "PH",
+      "nameCn": "菲律宾",
+      "nameEn": "Philippines",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 12.8797,
+      "longitude": 121.774,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "KHM",
+      "isoCode": "KH",
+      "nameCn": "柬埔寨",
+      "nameEn": "Cambodia",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 12.5657,
+      "longitude": 104.991,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LAO",
+      "isoCode": "LA",
+      "nameCn": "老挝",
+      "nameEn": "Laos",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 19.8563,
+      "longitude": 102.4955,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MMR",
+      "isoCode": "MM",
+      "nameCn": "缅甸",
+      "nameEn": "Myanmar",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 21.9162,
+      "longitude": 95.956,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BRN",
+      "isoCode": "BN",
+      "nameCn": "文莱",
+      "nameEn": "Brunei",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": 4.5353,
+      "longitude": 114.7277,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "IND",
+      "isoCode": "IN",
+      "nameCn": "印度",
+      "nameEn": "India",
+      "region": "SOUTH_ASIA",
+      "latitude": 20.5937,
+      "longitude": 78.9629,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PAK",
+      "isoCode": "PK",
+      "nameCn": "巴基斯坦",
+      "nameEn": "Pakistan",
+      "region": "SOUTH_ASIA",
+      "latitude": 30.3753,
+      "longitude": 69.3451,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BGD",
+      "isoCode": "BD",
+      "nameCn": "孟加拉国",
+      "nameEn": "Bangladesh",
+      "region": "SOUTH_ASIA",
+      "latitude": 23.685,
+      "longitude": 90.3563,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LKA",
+      "isoCode": "LK",
+      "nameCn": "斯里兰卡",
+      "nameEn": "Sri Lanka",
+      "region": "SOUTH_ASIA",
+      "latitude": 7.8731,
+      "longitude": 80.7718,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "NPL",
+      "isoCode": "NP",
+      "nameCn": "尼泊尔",
+      "nameEn": "Nepal",
+      "region": "SOUTH_ASIA",
+      "latitude": 28.3949,
+      "longitude": 84.124,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "KAZ",
+      "isoCode": "KZ",
+      "nameCn": "哈萨克斯坦",
+      "nameEn": "Kazakhstan",
+      "region": "CENTRAL_ASIA",
+      "latitude": 48.0196,
+      "longitude": 66.9237,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "KGZ",
+      "isoCode": "KG",
+      "nameCn": "吉尔吉斯斯坦",
+      "nameEn": "Kyrgyzstan",
+      "region": "CENTRAL_ASIA",
+      "latitude": 41.2044,
+      "longitude": 74.7661,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TJK",
+      "isoCode": "TJ",
+      "nameCn": "塔吉克斯坦",
+      "nameEn": "Tajikistan",
+      "region": "CENTRAL_ASIA",
+      "latitude": 38.861,
+      "longitude": 71.2761,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TKM",
+      "isoCode": "TM",
+      "nameCn": "土库曼斯坦",
+      "nameEn": "Turkmenistan",
+      "region": "CENTRAL_ASIA",
+      "latitude": 38.9697,
+      "longitude": 59.5563,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "UZB",
+      "isoCode": "UZ",
+      "nameCn": "乌兹别克斯坦",
+      "nameEn": "Uzbekistan",
+      "region": "CENTRAL_ASIA",
+      "latitude": 41.3775,
+      "longitude": 64.5853,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "IRN",
+      "isoCode": "IR",
+      "nameCn": "伊朗",
+      "nameEn": "Iran",
+      "region": "MIDDLE_EAST",
+      "latitude": 32.4279,
+      "longitude": 53.688,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SAU",
+      "isoCode": "SA",
+      "nameCn": "沙特阿拉伯",
+      "nameEn": "Saudi Arabia",
+      "region": "MIDDLE_EAST",
+      "latitude": 23.8859,
+      "longitude": 45.0792,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ARE",
+      "isoCode": "AE",
+      "nameCn": "阿联酋",
+      "nameEn": "United Arab Emirates",
+      "region": "MIDDLE_EAST",
+      "latitude": 23.4241,
+      "longitude": 53.8478,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TUR",
+      "isoCode": "TR",
+      "nameCn": "土耳其",
+      "nameEn": "Turkey",
+      "region": "MIDDLE_EAST",
+      "latitude": 38.9637,
+      "longitude": 35.2433,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "EGY",
+      "isoCode": "EG",
+      "nameCn": "埃及",
+      "nameEn": "Egypt",
+      "region": "AFRICA",
+      "latitude": 26.8206,
+      "longitude": 30.8025,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ETH",
+      "isoCode": "ET",
+      "nameCn": "埃塞俄比亚",
+      "nameEn": "Ethiopia",
+      "region": "AFRICA",
+      "latitude": 9.145,
+      "longitude": 40.4897,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "KEN",
+      "isoCode": "KE",
+      "nameCn": "肯尼亚",
+      "nameEn": "Kenya",
+      "region": "AFRICA",
+      "latitude": -0.0236,
+      "longitude": 37.9062,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ZAF",
+      "isoCode": "ZA",
+      "nameCn": "南非",
+      "nameEn": "South Africa",
+      "region": "AFRICA",
+      "latitude": -30.5595,
+      "longitude": 22.9375,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "RUS",
+      "isoCode": "RU",
+      "nameCn": "俄罗斯",
+      "nameEn": "Russia",
+      "region": "EUROPE",
+      "latitude": 61.524,
+      "longitude": 105.3188,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "POL",
+      "isoCode": "PL",
+      "nameCn": "波兰",
+      "nameEn": "Poland",
+      "region": "EUROPE",
+      "latitude": 51.9194,
+      "longitude": 19.1451,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "HUN",
+      "isoCode": "HU",
+      "nameCn": "匈牙利",
+      "nameEn": "Hungary",
+      "region": "EUROPE",
+      "latitude": 47.1625,
+      "longitude": 19.5033,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SRB",
+      "isoCode": "RS",
+      "nameCn": "塞尔维亚",
+      "nameEn": "Serbia",
+      "region": "EUROPE",
+      "latitude": 44.0165,
+      "longitude": 21.0059,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GRC",
+      "isoCode": "GR",
+      "nameCn": "希腊",
+      "nameEn": "Greece",
+      "region": "EUROPE",
+      "latitude": 39.0742,
+      "longitude": 21.8243,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "NZL",
+      "isoCode": "NZ",
+      "nameCn": "新西兰",
+      "nameEn": "New Zealand",
+      "region": "OCEANIA",
+      "latitude": -40.9006,
+      "longitude": 174.886,
+      "isCoreCountry": false
     }
   ]
 }
