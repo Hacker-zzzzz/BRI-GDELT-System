@@ -8,6 +8,7 @@ import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.EventType;
+import edu.course.brigdelt.domain.ExportResult;
 import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
@@ -19,6 +20,7 @@ import edu.course.brigdelt.service.DashboardService;
 import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
 import edu.course.brigdelt.service.MapVisualizationService;
+import edu.course.brigdelt.service.ReportExportService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.beans.property.ReadOnlyObjectWrapper;
@@ -93,7 +95,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.8 专题地图 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.9 结果导出 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -167,6 +169,7 @@ public class MainView {
             case "合作态势分析" -> createCooperationAnalysisPage();
             case "风险评估" -> createRiskAssessmentPage();
             case "专题地图" -> createMapPage();
+            case "结果导出" -> createExportPage();
             default -> createPlaceholderPage(page);
         };
         contentHost.getChildren().setAll(content);
@@ -833,6 +836,69 @@ public class MainView {
         return wrapScrollable(body);
     }
 
+    private Parent createExportPage() {
+        VBox body = createPageBase("分析结果导出", "一键生成课堂汇报可引用的汇总报告和国家排名 CSV 文件。");
+
+        HBox actionRow = new HBox(12);
+        actionRow.getStyleClass().add("query-form");
+        actionRow.setAlignment(Pos.CENTER_LEFT);
+        Button exportButton = new Button("生成导出文件");
+        exportButton.getStyleClass().add("primary-button");
+        Label targetText = new Label("输出目录：" + paths.reportDir() + "；" + paths.exportDir());
+        targetText.getStyleClass().add("import-status");
+        targetText.setWrapText(true);
+        actionRow.getChildren().addAll(exportButton, targetText);
+        HBox.setHgrow(targetText, Priority.ALWAYS);
+
+        Label statusText = new Label("点击按钮后生成 TXT 汇总报告、合作排名 CSV 和风险排名 CSV。");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        Label insightText = new Label("导出内容来自当前 SQLite 数据库，可在 PPT 中引用总体概况、合作热点国家和风险预警国家。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("导出内容说明", insightText);
+        VBox formulaPanel = createFormulaPanel("文件用途",
+                "TXT 报告适合直接整理到 PPT 备注；CSV 文件适合复制到 Excel 或 WPS 中制作排名表和图表。");
+
+        TextArea resultArea = new TextArea("暂无导出结果。");
+        resultArea.getStyleClass().add("result-summary");
+        resultArea.setEditable(false);
+        resultArea.setWrapText(true);
+        resultArea.setPrefRowCount(10);
+
+        exportButton.setOnAction(event -> {
+            Task<ExportResult> task = new Task<>() {
+                @Override
+                protected ExportResult call() {
+                    return new ReportExportService(paths).exportSnapshot();
+                }
+            };
+            exportButton.setDisable(true);
+            statusText.setText("正在生成导出文件，请稍候...");
+            resultArea.setText("导出任务运行中。");
+            task.setOnSucceeded(workerEvent -> {
+                ExportResult result = task.getValue();
+                statusText.setText(result.displaySummary());
+                resultArea.setText(formatExportResult(result));
+                exportButton.setDisable(false);
+            });
+            task.setOnFailed(workerEvent -> {
+                Throwable exception = task.getException();
+                statusText.setText("导出失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+                resultArea.setText(exception == null ? "无异常详情。" : exception.toString());
+                exportButton.setDisable(false);
+            });
+            Thread thread = new Thread(task, "report-export-task");
+            thread.setDaemon(true);
+            thread.start();
+        });
+
+        body.getChildren().addAll(actionRow, statusText, new HBox(14, insightPanel, formulaPanel),
+                createSectionTitle("导出结果"), resultArea);
+        return wrapScrollable(body);
+    }
+
     private Parent createEventQueryPage(PageSpec page) {
         VBox body = createPageBase(page.title(), page.description());
 
@@ -1241,6 +1307,18 @@ public class MainView {
         List<String> samples = result.errorSamples();
         for (int index = 0; index < samples.size(); index++) {
             builder.append(index + 1).append(". ").append(samples.get(index)).append(System.lineSeparator());
+        }
+        return builder.toString();
+    }
+
+    private String formatExportResult(ExportResult result) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(result.displaySummary()).append(System.lineSeparator()).append(System.lineSeparator());
+        for (int index = 0; index < result.files().size(); index++) {
+            builder.append(index + 1)
+                    .append(". ")
+                    .append(result.files().get(index))
+                    .append(System.lineSeparator());
         }
         return builder.toString();
     }
