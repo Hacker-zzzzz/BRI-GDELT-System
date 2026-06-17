@@ -2,12 +2,14 @@ package edu.course.brigdelt.repository;
 
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
+import edu.course.brigdelt.domain.CooperationScore;
 import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.GdeltEvent;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
+import edu.course.brigdelt.domain.RiskAssessment;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -349,6 +351,112 @@ public class GdeltEventRepository {
         }
     }
 
+    public List<CooperationScore> queryCooperationScores(int limit) {
+        String sql = """
+                WITH country_events AS (
+                    SELECT actor1_country_code AS country_code, event_type, goldstein_scale, avg_tone, num_mentions
+                    FROM gdelt_events
+                    WHERE actor1_country_code IS NOT NULL AND TRIM(actor1_country_code) <> ''
+                    UNION ALL
+                    SELECT actor2_country_code AS country_code, event_type, goldstein_scale, avg_tone, num_mentions
+                    FROM gdelt_events
+                    WHERE actor2_country_code IS NOT NULL AND TRIM(actor2_country_code) <> ''
+                )
+                SELECT
+                    country_code,
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone,
+                    SUM(num_mentions) AS total_mentions
+                FROM country_events
+                GROUP BY country_code
+                ORDER BY cooperation_events DESC, total_events DESC, country_code
+                LIMIT ?
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, limit <= 0 ? 20 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CooperationScore> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    int cooperationEvents = resultSet.getInt("cooperation_events");
+                    int conflictEvents = resultSet.getInt("conflict_events");
+                    double averageGoldstein = resultSet.getDouble("average_goldstein");
+                    double averageAvgTone = resultSet.getDouble("average_avg_tone");
+                    int totalMentions = resultSet.getInt("total_mentions");
+                    results.add(new CooperationScore(
+                            resultSet.getString("country_code"),
+                            resultSet.getInt("total_events"),
+                            cooperationEvents,
+                            conflictEvents,
+                            averageGoldstein,
+                            averageAvgTone,
+                            totalMentions,
+                            cooperationIndex(cooperationEvents, conflictEvents, averageGoldstein,
+                                    averageAvgTone, totalMentions)
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("合作态势国家排名查询失败。", exception);
+        }
+    }
+
+    public List<RiskAssessment> queryRiskAssessments(int limit) {
+        String sql = """
+                WITH country_events AS (
+                    SELECT actor1_country_code AS country_code, event_type, goldstein_scale, avg_tone
+                    FROM gdelt_events
+                    WHERE actor1_country_code IS NOT NULL AND TRIM(actor1_country_code) <> ''
+                    UNION ALL
+                    SELECT actor2_country_code AS country_code, event_type, goldstein_scale, avg_tone
+                    FROM gdelt_events
+                    WHERE actor2_country_code IS NOT NULL AND TRIM(actor2_country_code) <> ''
+                )
+                SELECT
+                    country_code,
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone
+                FROM country_events
+                GROUP BY country_code
+                ORDER BY conflict_events DESC, total_events DESC, country_code
+                LIMIT ?
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, limit <= 0 ? 20 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<RiskAssessment> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    int totalEvents = resultSet.getInt("total_events");
+                    int conflictEvents = resultSet.getInt("conflict_events");
+                    double conflictRatio = ratio(conflictEvents, totalEvents);
+                    double averageGoldstein = resultSet.getDouble("average_goldstein");
+                    double averageAvgTone = resultSet.getDouble("average_avg_tone");
+                    double riskIndex = riskIndex(conflictEvents, conflictRatio, averageGoldstein, averageAvgTone);
+                    results.add(new RiskAssessment(
+                            resultSet.getString("country_code"),
+                            totalEvents,
+                            conflictEvents,
+                            conflictRatio,
+                            averageGoldstein,
+                            averageAvgTone,
+                            riskIndex,
+                            riskLevel(riskIndex)
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("风险评估国家排名查询失败。", exception);
+        }
+    }
+
     private QueryParts buildWhereClause(EventQueryCriteria criteria) {
         List<String> clauses = new ArrayList<>();
         List<Object> parameters = new ArrayList<>();
@@ -398,6 +506,39 @@ public class GdeltEventRepository {
 
     private double ratio(int value, int total) {
         return total <= 0 ? 0 : (double) value / total;
+    }
+
+    private double cooperationIndex(int cooperationEvents, int conflictEvents, double averageGoldstein,
+                                    double averageAvgTone, int totalMentions) {
+        return clamp(cooperationEvents * 2.0
+                + Math.max(averageGoldstein, 0) * 6.0
+                + Math.max(averageAvgTone, 0) * 2.0
+                + Math.log1p(Math.max(totalMentions, 0)) * 4.0
+                - conflictEvents * 1.5);
+    }
+
+    private double riskIndex(int conflictEvents, double conflictRatio, double averageGoldstein, double averageAvgTone) {
+        return clamp(conflictRatio * 60.0
+                + Math.max(-averageGoldstein, 0) * 6.0
+                + Math.max(-averageAvgTone, 0) * 2.5
+                + conflictEvents * 2.0);
+    }
+
+    private double clamp(double value) {
+        return Math.max(0, Math.min(100, value));
+    }
+
+    private String riskLevel(double riskIndex) {
+        if (riskIndex < 25) {
+            return "低";
+        }
+        if (riskIndex < 50) {
+            return "中";
+        }
+        if (riskIndex < 75) {
+            return "高";
+        }
+        return "极高";
     }
 
     private EventQueryResult mapQueryResult(ResultSet resultSet) throws SQLException {

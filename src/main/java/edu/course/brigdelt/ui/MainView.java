@@ -2,6 +2,7 @@ package edu.course.brigdelt.ui;
 
 import edu.course.brigdelt.config.AppPaths;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
+import edu.course.brigdelt.domain.CooperationScore;
 import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
@@ -9,13 +10,16 @@ import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
+import edu.course.brigdelt.domain.RiskAssessment;
 import edu.course.brigdelt.repository.DatabaseManager;
+import edu.course.brigdelt.service.AnalysisService;
 import edu.course.brigdelt.service.BilateralRelationService;
 import edu.course.brigdelt.service.DashboardService;
 import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.concurrent.Task;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
@@ -54,6 +58,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Builds the v0.1 JavaFX application shell.
@@ -84,7 +89,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.5 仪表盘 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.6 合作与风险分析 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -155,6 +160,8 @@ public class MainView {
             case "数据导入" -> createImportPage(page);
             case "事件查询" -> createEventQueryPage(page);
             case "双边关系" -> createBilateralPage();
+            case "合作态势分析" -> createCooperationAnalysisPage();
+            case "风险评估" -> createRiskAssessmentPage();
             default -> createPlaceholderPage(page);
         };
         contentHost.getChildren().setAll(content);
@@ -534,6 +541,110 @@ public class MainView {
         return wrapScrollable(body);
     }
 
+    private Parent createCooperationAnalysisPage() {
+        VBox body = createPageBase("沿线国家合作态势分析", "按国家聚合 GDELT 事件，综合合作事件量、Goldstein、媒体语调和关注度形成合作指数。");
+
+        Label statusText = new Label("正在加载合作态势排名...");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        HBox metricRow = new HBox(14);
+        metricRow.getStyleClass().add("summary-row");
+        Label countryValue = metricValue("0");
+        Label topCountryValue = metricValue("-");
+        Label topIndexValue = metricValue("0.0");
+        Label totalCooperationValue = metricValue("0");
+        metricRow.getChildren().addAll(
+                createMetricCard("覆盖国家", countryValue, "有事件记录的国家数", "neutral-card"),
+                createMetricCard("合作首位", topCountryValue, "合作指数排名第一", "positive-card"),
+                createMetricCard("最高合作指数", topIndexValue, "0-100 综合评分", "positive-card"),
+                createMetricCard("合作事件合计", totalCooperationValue, "排名国家合作事件总和", "neutral-card")
+        );
+
+        TableView<CooperationScore> table = createCooperationTable();
+        ObservableList<CooperationScore> items = FXCollections.observableArrayList();
+        table.setItems(items);
+
+        Task<List<CooperationScore>> task = new Task<>() {
+            @Override
+            protected List<CooperationScore> call() {
+                return new AnalysisService(new DatabaseManager(paths))
+                        .cooperationRankings(AnalysisService.DEFAULT_RANK_LIMIT);
+            }
+        };
+        task.setOnSucceeded(event -> {
+            List<CooperationScore> results = task.getValue();
+            items.setAll(results);
+            updateCooperationMetrics(results, countryValue, topCountryValue, topIndexValue, totalCooperationValue);
+            statusText.setText(results.isEmpty()
+                    ? "暂无合作态势数据。"
+                    : "合作态势排名已加载，共显示 " + results.size() + " 个国家。");
+        });
+        task.setOnFailed(event -> {
+            Throwable exception = task.getException();
+            statusText.setText("合作态势加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+        });
+        Thread thread = new Thread(task, "cooperation-analysis-task");
+        thread.setDaemon(true);
+        thread.start();
+
+        body.getChildren().addAll(statusText, metricRow, createSectionTitle("合作指数国家排名"), table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
+    private Parent createRiskAssessmentPage() {
+        VBox body = createPageBase("沿线国家风险评估", "按国家聚合冲突事件、冲突占比、Goldstein 和媒体语调，形成便于答辩解释的风险指数。");
+
+        Label statusText = new Label("正在加载风险评估排名...");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        HBox metricRow = new HBox(14);
+        metricRow.getStyleClass().add("summary-row");
+        Label countryValue = metricValue("0");
+        Label topCountryValue = metricValue("-");
+        Label topIndexValue = metricValue("0.0");
+        Label highRiskValue = metricValue("0");
+        metricRow.getChildren().addAll(
+                createMetricCard("覆盖国家", countryValue, "有事件记录的国家数", "neutral-card"),
+                createMetricCard("风险首位", topCountryValue, "风险指数排名第一", "negative-card"),
+                createMetricCard("最高风险指数", topIndexValue, "0-100 综合评分", "negative-card"),
+                createMetricCard("高风险国家", highRiskValue, "风险等级为高或极高", "negative-card")
+        );
+
+        TableView<RiskAssessment> table = createRiskTable();
+        ObservableList<RiskAssessment> items = FXCollections.observableArrayList();
+        table.setItems(items);
+
+        Task<List<RiskAssessment>> task = new Task<>() {
+            @Override
+            protected List<RiskAssessment> call() {
+                return new AnalysisService(new DatabaseManager(paths))
+                        .riskRankings(AnalysisService.DEFAULT_RANK_LIMIT);
+            }
+        };
+        task.setOnSucceeded(event -> {
+            List<RiskAssessment> results = task.getValue();
+            items.setAll(results);
+            updateRiskMetrics(results, countryValue, topCountryValue, topIndexValue, highRiskValue);
+            statusText.setText(results.isEmpty()
+                    ? "暂无风险评估数据。"
+                    : "风险评估排名已加载，共显示 " + results.size() + " 个国家。");
+        });
+        task.setOnFailed(event -> {
+            Throwable exception = task.getException();
+            statusText.setText("风险评估加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+        });
+        Thread thread = new Thread(task, "risk-assessment-task");
+        thread.setDaemon(true);
+        thread.start();
+
+        body.getChildren().addAll(statusText, metricRow, createSectionTitle("风险指数国家排名"), table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
     private Parent createEventQueryPage(PageSpec page) {
         VBox body = createPageBase(page.title(), page.description());
 
@@ -699,6 +810,47 @@ public class MainView {
         return table;
     }
 
+    private TableView<CooperationScore> createCooperationTable() {
+        TableView<CooperationScore> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无合作态势数据。"));
+        table.getColumns().add(valueColumn("国家", 90, CooperationScore::countryCode));
+        table.getColumns().add(valueColumn("总事件", 90, CooperationScore::totalEvents));
+        table.getColumns().add(valueColumn("合作", 90, CooperationScore::cooperationEvents));
+        table.getColumns().add(valueColumn("冲突", 90, CooperationScore::conflictEvents));
+        table.getColumns().add(valueColumn("Avg Goldstein", 130,
+                score -> "%.2f".formatted(score.averageGoldstein())));
+        table.getColumns().add(valueColumn("Avg Tone", 110,
+                score -> "%.2f".formatted(score.averageAvgTone())));
+        table.getColumns().add(valueColumn("Mentions", 100, CooperationScore::totalMentions));
+        table.getColumns().add(valueColumn("合作指数", 110,
+                score -> "%.1f".formatted(score.cooperationIndex())));
+        table.setMinHeight(420);
+        return table;
+    }
+
+    private TableView<RiskAssessment> createRiskTable() {
+        TableView<RiskAssessment> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无风险评估数据。"));
+        table.getColumns().add(valueColumn("国家", 90, RiskAssessment::countryCode));
+        table.getColumns().add(valueColumn("总事件", 90, RiskAssessment::totalEvents));
+        table.getColumns().add(valueColumn("冲突", 90, RiskAssessment::conflictEvents));
+        table.getColumns().add(valueColumn("冲突占比", 110,
+                risk -> formatPercent(risk.conflictRatio())));
+        table.getColumns().add(valueColumn("Avg Goldstein", 130,
+                risk -> "%.2f".formatted(risk.averageGoldstein())));
+        table.getColumns().add(valueColumn("Avg Tone", 110,
+                risk -> "%.2f".formatted(risk.averageAvgTone())));
+        table.getColumns().add(valueColumn("风险指数", 110,
+                risk -> "%.1f".formatted(risk.riskIndex())));
+        table.getColumns().add(valueColumn("风险等级", 100, RiskAssessment::riskLevel));
+        table.setMinHeight(420);
+        return table;
+    }
+
     private TableColumn<EventQueryResult, Object> textColumn(String title, String property, double width) {
         TableColumn<EventQueryResult, Object> column = new TableColumn<>(title);
         column.setCellValueFactory(new PropertyValueFactory<>(property));
@@ -709,6 +861,13 @@ public class MainView {
     private TableColumn<MonthlyTrendPoint, Object> trendColumn(String title, String property, double width) {
         TableColumn<MonthlyTrendPoint, Object> column = new TableColumn<>(title);
         column.setCellValueFactory(new PropertyValueFactory<>(property));
+        column.setPrefWidth(width);
+        return column;
+    }
+
+    private <T> TableColumn<T, Object> valueColumn(String title, double width, Function<T, Object> mapper) {
+        TableColumn<T, Object> column = new TableColumn<>(title);
+        column.setCellValueFactory(data -> new ReadOnlyObjectWrapper<>(mapper.apply(data.getValue())));
         column.setPrefWidth(width);
         return column;
     }
@@ -745,6 +904,44 @@ public class MainView {
         goldstein.setText("%.2f".formatted(summary.averageGoldstein()));
         tone.setText("%.2f".formatted(summary.averageAvgTone()));
         mentions.setText(String.valueOf(summary.totalMentions()));
+    }
+
+    private void updateCooperationMetrics(List<CooperationScore> scores, Label country, Label topCountry,
+                                          Label topIndex, Label totalCooperation) {
+        country.setText(String.valueOf(scores.size()));
+        if (scores.isEmpty()) {
+            topCountry.setText("-");
+            topIndex.setText("0.0");
+            totalCooperation.setText("0");
+            return;
+        }
+        CooperationScore top = scores.stream()
+                .max((left, right) -> Double.compare(left.cooperationIndex(), right.cooperationIndex()))
+                .orElse(scores.get(0));
+        int cooperationEvents = scores.stream().mapToInt(CooperationScore::cooperationEvents).sum();
+        topCountry.setText(top.countryCode());
+        topIndex.setText("%.1f".formatted(top.cooperationIndex()));
+        totalCooperation.setText(String.valueOf(cooperationEvents));
+    }
+
+    private void updateRiskMetrics(List<RiskAssessment> risks, Label country, Label topCountry,
+                                   Label topIndex, Label highRisk) {
+        country.setText(String.valueOf(risks.size()));
+        if (risks.isEmpty()) {
+            topCountry.setText("-");
+            topIndex.setText("0.0");
+            highRisk.setText("0");
+            return;
+        }
+        RiskAssessment top = risks.stream()
+                .max((left, right) -> Double.compare(left.riskIndex(), right.riskIndex()))
+                .orElse(risks.get(0));
+        long highRiskCountries = risks.stream()
+                .filter(risk -> "高".equals(risk.riskLevel()) || "极高".equals(risk.riskLevel()))
+                .count();
+        topCountry.setText(top.countryCode());
+        topIndex.setText("%.1f".formatted(top.riskIndex()));
+        highRisk.setText(String.valueOf(highRiskCountries));
     }
 
     private String formatPercent(double ratio) {
