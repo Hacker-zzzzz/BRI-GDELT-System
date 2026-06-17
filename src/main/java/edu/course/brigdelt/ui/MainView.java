@@ -1,11 +1,14 @@
 package edu.course.brigdelt.ui;
 
 import edu.course.brigdelt.config.AppPaths;
+import edu.course.brigdelt.domain.BilateralRelationSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.ImportResult;
+import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.repository.DatabaseManager;
+import edu.course.brigdelt.service.BilateralRelationService;
 import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
 import javafx.collections.FXCollections;
@@ -72,7 +75,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.3 查询检索 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.4 双边分析 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -142,6 +145,7 @@ public class MainView {
             case "首页仪表盘" -> createDashboardPage(page);
             case "数据导入" -> createImportPage(page);
             case "事件查询" -> createEventQueryPage(page);
+            case "双边关系" -> createBilateralPage();
             default -> createPlaceholderPage(page);
         };
         contentHost.getChildren().setAll(content);
@@ -295,6 +299,119 @@ public class MainView {
         return wrapScrollable(body);
     }
 
+    private Parent createBilateralPage() {
+        VBox body = createPageBase("中国与沿线国家双边关系分析", "围绕两个国家之间的 GDELT 事件，展示合作冲突结构、综合态势和月度变化。");
+
+        GridPane form = new GridPane();
+        form.getStyleClass().add("query-form");
+        form.setHgap(12);
+        form.setVgap(12);
+
+        TextField countryAField = new TextField(BilateralRelationService.DEFAULT_COUNTRY_A);
+        TextField countryBField = new TextField();
+        countryBField.setPromptText("如 KAZ、PAK、KEN");
+        Button searchButton = new Button("分析");
+        searchButton.getStyleClass().add("primary-button");
+        Button clearButton = new Button("清空");
+        clearButton.getStyleClass().add("secondary-button");
+        addFormField(form, 0, 0, "国家 A", countryAField);
+        addFormField(form, 0, 1, "国家 B", countryBField);
+        form.add(new HBox(10, searchButton, clearButton), 2, 0);
+
+        Label statusText = new Label("默认以 CHN 为国家 A，输入沿线国家代码后开始分析。");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        HBox firstMetricRow = new HBox(14);
+        firstMetricRow.getStyleClass().add("summary-row");
+        HBox secondMetricRow = new HBox(14);
+        secondMetricRow.getStyleClass().add("summary-row");
+        Label totalValue = metricValue("0");
+        Label cooperationValue = metricValue("0");
+        Label conflictValue = metricValue("0");
+        Label cooperationRatioValue = metricValue("0.0%");
+        Label conflictRatioValue = metricValue("0.0%");
+        Label goldsteinValue = metricValue("0.00");
+        Label toneValue = metricValue("0.00");
+        Label mentionsValue = metricValue("0");
+        firstMetricRow.getChildren().addAll(
+                createMetricCard("总事件数", totalValue, "双边互动总量", "neutral-card"),
+                createMetricCard("合作事件", cooperationValue, "EventRoot 04/05/06", "positive-card"),
+                createMetricCard("冲突事件", conflictValue, "EventRoot 08-14", "negative-card"),
+                createMetricCard("合作占比", cooperationRatioValue, "合作事件 / 总事件", "positive-card")
+        );
+        secondMetricRow.getChildren().addAll(
+                createMetricCard("冲突占比", conflictRatioValue, "冲突事件 / 总事件", "negative-card"),
+                createMetricCard("平均 Goldstein", goldsteinValue, "关系正负强度", "neutral-card"),
+                createMetricCard("平均 AvgTone", toneValue, "媒体语调均值", "neutral-card"),
+                createMetricCard("媒体关注度", mentionsValue, "NumMentions 总和", "neutral-card")
+        );
+
+        TableView<MonthlyTrendPoint> trendTable = createTrendTable();
+        ObservableList<MonthlyTrendPoint> trendItems = FXCollections.observableArrayList();
+        trendTable.setItems(trendItems);
+
+        TableView<EventQueryResult> eventTable = createEventTable();
+        ObservableList<EventQueryResult> eventItems = FXCollections.observableArrayList();
+        eventTable.setItems(eventItems);
+
+        searchButton.setOnAction(event -> {
+            String countryA = countryAField.getText();
+            String countryB = countryBField.getText();
+            Task<BilateralViewData> task = new Task<>() {
+                @Override
+                protected BilateralViewData call() {
+                    BilateralRelationService service = new BilateralRelationService(new DatabaseManager(paths));
+                    return new BilateralViewData(
+                            service.summarize(countryA, countryB),
+                            service.monthlyTrend(countryA, countryB),
+                            service.events(countryA, countryB, BilateralRelationService.DEFAULT_EVENT_LIMIT)
+                    );
+                }
+            };
+            searchButton.setDisable(true);
+            clearButton.setDisable(true);
+            statusText.setText("正在分析双边关系，请稍候...");
+            task.setOnSucceeded(workerEvent -> {
+                BilateralViewData data = task.getValue();
+                updateBilateralMetrics(data.summary(), totalValue, cooperationValue, conflictValue,
+                        cooperationRatioValue, conflictRatioValue, goldsteinValue, toneValue, mentionsValue);
+                trendItems.setAll(data.trends());
+                eventItems.setAll(data.events());
+                statusText.setText(data.summary().totalEvents() == 0
+                        ? "暂无双边事件数据。"
+                        : "分析完成：" + data.summary().countryA() + " - " + data.summary().countryB()
+                        + " 共 " + data.summary().totalEvents() + " 条事件。");
+                searchButton.setDisable(false);
+                clearButton.setDisable(false);
+            });
+            task.setOnFailed(workerEvent -> {
+                Throwable exception = task.getException();
+                statusText.setText("分析失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+                searchButton.setDisable(false);
+                clearButton.setDisable(false);
+            });
+            Thread thread = new Thread(task, "bilateral-analysis-task");
+            thread.setDaemon(true);
+            thread.start();
+        });
+
+        clearButton.setOnAction(event -> {
+            countryAField.setText(BilateralRelationService.DEFAULT_COUNTRY_A);
+            countryBField.clear();
+            trendItems.clear();
+            eventItems.clear();
+            updateBilateralMetrics(BilateralRelationSummary.empty("CHN", ""), totalValue, cooperationValue,
+                    conflictValue, cooperationRatioValue, conflictRatioValue, goldsteinValue, toneValue, mentionsValue);
+            statusText.setText("筛选条件已清空。");
+        });
+
+        body.getChildren().addAll(form, statusText, firstMetricRow, secondMetricRow,
+                createSectionTitle("月度趋势预览"), trendTable,
+                createSectionTitle("双边事件明细"), eventTable);
+        return wrapScrollable(body);
+    }
+
     private Parent createEventQueryPage(PageSpec page) {
         VBox body = createPageBase(page.title(), page.description());
 
@@ -445,11 +562,71 @@ public class MainView {
         return table;
     }
 
+    private TableView<MonthlyTrendPoint> createTrendTable() {
+        TableView<MonthlyTrendPoint> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无月度趋势数据。"));
+        table.getColumns().add(trendColumn("月份", "month", 100));
+        table.getColumns().add(trendColumn("总数", "totalEvents", 90));
+        table.getColumns().add(trendColumn("合作", "cooperationEvents", 90));
+        table.getColumns().add(trendColumn("冲突", "conflictEvents", 90));
+        table.getColumns().add(trendColumn("Avg Goldstein", "averageGoldstein", 130));
+        table.getColumns().add(trendColumn("Avg Tone", "averageAvgTone", 120));
+        table.setMinHeight(180);
+        return table;
+    }
+
     private TableColumn<EventQueryResult, Object> textColumn(String title, String property, double width) {
         TableColumn<EventQueryResult, Object> column = new TableColumn<>(title);
         column.setCellValueFactory(new PropertyValueFactory<>(property));
         column.setPrefWidth(width);
         return column;
+    }
+
+    private TableColumn<MonthlyTrendPoint, Object> trendColumn(String title, String property, double width) {
+        TableColumn<MonthlyTrendPoint, Object> column = new TableColumn<>(title);
+        column.setCellValueFactory(new PropertyValueFactory<>(property));
+        column.setPrefWidth(width);
+        return column;
+    }
+
+    private Label createSectionTitle(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("section-heading");
+        return label;
+    }
+
+    private Label metricValue(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("summary-value");
+        return label;
+    }
+
+    private HBox createMetricCard(String labelText, Label value, String detailText, String semanticClass) {
+        HBox card = createSummaryCard(labelText, value.getText(), detailText);
+        value.getStyleClass().add("metric-value");
+        VBox textBox = (VBox) card.getChildren().get(0);
+        textBox.getChildren().set(1, value);
+        card.getStyleClass().add(semanticClass);
+        return card;
+    }
+
+    private void updateBilateralMetrics(BilateralRelationSummary summary, Label total, Label cooperation,
+                                        Label conflict, Label cooperationRatio, Label conflictRatio,
+                                        Label goldstein, Label tone, Label mentions) {
+        total.setText(String.valueOf(summary.totalEvents()));
+        cooperation.setText(String.valueOf(summary.cooperationEvents()));
+        conflict.setText(String.valueOf(summary.conflictEvents()));
+        cooperationRatio.setText(formatPercent(summary.cooperationRatio()));
+        conflictRatio.setText(formatPercent(summary.conflictRatio()));
+        goldstein.setText("%.2f".formatted(summary.averageGoldstein()));
+        tone.setText("%.2f".formatted(summary.averageAvgTone()));
+        mentions.setText(String.valueOf(summary.totalMentions()));
+    }
+
+    private String formatPercent(double ratio) {
+        return "%.1f%%".formatted(ratio * 100);
     }
 
     private Parent wrapScrollable(VBox body) {
@@ -639,5 +816,12 @@ public class MainView {
         public String toString() {
             return label;
         }
+    }
+
+    private record BilateralViewData(
+            BilateralRelationSummary summary,
+            List<MonthlyTrendPoint> trends,
+            List<EventQueryResult> events
+    ) {
     }
 }

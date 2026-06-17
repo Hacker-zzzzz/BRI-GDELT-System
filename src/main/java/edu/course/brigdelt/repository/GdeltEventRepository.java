@@ -1,9 +1,11 @@
 package edu.course.brigdelt.repository;
 
 import edu.course.brigdelt.domain.EventType;
+import edu.course.brigdelt.domain.BilateralRelationSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.GdeltEvent;
+import edu.course.brigdelt.domain.MonthlyTrendPoint;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -140,6 +142,113 @@ public class GdeltEventRepository {
         }
     }
 
+    public BilateralRelationSummary summarizeBilateral(String countryA, String countryB) {
+        String sql = """
+                SELECT
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    SUM(CASE WHEN event_type = 'OTHER' THEN 1 ELSE 0 END) AS other_events,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone,
+                    SUM(num_mentions) AS total_mentions
+                FROM gdelt_events
+                WHERE (actor1_country_code = ? AND actor2_country_code = ?)
+                   OR (actor1_country_code = ? AND actor2_country_code = ?)
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindCountryPair(statement, countryA, countryB);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    return BilateralRelationSummary.empty(countryA, countryB);
+                }
+                int totalEvents = resultSet.getInt("total_events");
+                int cooperationEvents = resultSet.getInt("cooperation_events");
+                int conflictEvents = resultSet.getInt("conflict_events");
+                int otherEvents = resultSet.getInt("other_events");
+                return new BilateralRelationSummary(
+                        countryA,
+                        countryB,
+                        totalEvents,
+                        cooperationEvents,
+                        conflictEvents,
+                        otherEvents,
+                        ratio(cooperationEvents, totalEvents),
+                        ratio(conflictEvents, totalEvents),
+                        resultSet.getDouble("average_goldstein"),
+                        resultSet.getDouble("average_avg_tone"),
+                        resultSet.getInt("total_mentions")
+                );
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("双边关系统计失败。", exception);
+        }
+    }
+
+    public List<EventQueryResult> queryBilateralEvents(String countryA, String countryB, int limit) {
+        String sql = """
+                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                       event_type, event_root_code, goldstein_scale, num_mentions, avg_tone, source_file
+                FROM gdelt_events
+                WHERE (actor1_country_code = ? AND actor2_country_code = ?)
+                   OR (actor1_country_code = ? AND actor2_country_code = ?)
+                ORDER BY event_date DESC, global_event_id DESC
+                LIMIT ?
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindCountryPair(statement, countryA, countryB);
+            statement.setInt(5, limit <= 0 ? 200 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<EventQueryResult> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(mapQueryResult(resultSet));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("双边事件查询失败。", exception);
+        }
+    }
+
+    public List<MonthlyTrendPoint> queryBilateralMonthlyTrend(String countryA, String countryB) {
+        String sql = """
+                SELECT
+                    substr(event_date, 1, 7) AS month,
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone
+                FROM gdelt_events
+                WHERE (actor1_country_code = ? AND actor2_country_code = ?)
+                   OR (actor1_country_code = ? AND actor2_country_code = ?)
+                GROUP BY substr(event_date, 1, 7)
+                ORDER BY month
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindCountryPair(statement, countryA, countryB);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<MonthlyTrendPoint> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(new MonthlyTrendPoint(
+                            resultSet.getString("month"),
+                            resultSet.getInt("total_events"),
+                            resultSet.getInt("cooperation_events"),
+                            resultSet.getInt("conflict_events"),
+                            resultSet.getDouble("average_goldstein"),
+                            resultSet.getDouble("average_avg_tone")
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("双边月度趋势查询失败。", exception);
+        }
+    }
+
     private QueryParts buildWhereClause(EventQueryCriteria criteria) {
         List<String> clauses = new ArrayList<>();
         List<Object> parameters = new ArrayList<>();
@@ -178,6 +287,17 @@ public class GdeltEventRepository {
         for (int index = 0; index < parameters.size(); index++) {
             statement.setObject(index + 1, parameters.get(index));
         }
+    }
+
+    private void bindCountryPair(PreparedStatement statement, String countryA, String countryB) throws SQLException {
+        statement.setString(1, countryA);
+        statement.setString(2, countryB);
+        statement.setString(3, countryB);
+        statement.setString(4, countryA);
+    }
+
+    private double ratio(int value, int total) {
+        return total <= 0 ? 0 : (double) value / total;
     }
 
     private EventQueryResult mapQueryResult(ResultSet resultSet) throws SQLException {
