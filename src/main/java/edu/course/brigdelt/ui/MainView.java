@@ -1,11 +1,18 @@
 package edu.course.brigdelt.ui;
 
 import edu.course.brigdelt.config.AppPaths;
+import edu.course.brigdelt.domain.EventQueryCriteria;
+import edu.course.brigdelt.domain.EventQueryResult;
+import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.repository.DatabaseManager;
+import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
@@ -16,8 +23,11 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -30,6 +40,7 @@ import javafx.stage.Window;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -61,7 +72,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.2 数据导入 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.3 查询检索 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -130,6 +141,7 @@ public class MainView {
         Parent content = switch (page.title()) {
             case "首页仪表盘" -> createDashboardPage(page);
             case "数据导入" -> createImportPage(page);
+            case "事件查询" -> createEventQueryPage(page);
             default -> createPlaceholderPage(page);
         };
         contentHost.getChildren().setAll(content);
@@ -283,6 +295,109 @@ public class MainView {
         return wrapScrollable(body);
     }
 
+    private Parent createEventQueryPage(PageSpec page) {
+        VBox body = createPageBase(page.title(), page.description());
+
+        GridPane form = new GridPane();
+        form.getStyleClass().add("query-form");
+        form.setHgap(12);
+        form.setVgap(12);
+
+        DatePicker startDatePicker = new DatePicker();
+        DatePicker endDatePicker = new DatePicker();
+        TextField anyCountryField = new TextField();
+        anyCountryField.setPromptText("如 CHN");
+        TextField actor1Field = new TextField();
+        actor1Field.setPromptText("Actor1");
+        TextField actor2Field = new TextField();
+        actor2Field.setPromptText("Actor2");
+
+        ComboBox<EventTypeOption> eventTypeBox = new ComboBox<>();
+        eventTypeBox.getItems().addAll(
+                new EventTypeOption("全部", null),
+                new EventTypeOption("合作", EventType.COOPERATION),
+                new EventTypeOption("冲突", EventType.CONFLICT),
+                new EventTypeOption("其他", EventType.OTHER)
+        );
+        eventTypeBox.getSelectionModel().selectFirst();
+
+        Button searchButton = new Button("查询");
+        searchButton.getStyleClass().add("primary-button");
+        Button clearButton = new Button("清空");
+        clearButton.getStyleClass().add("secondary-button");
+
+        addFormField(form, 0, 0, "开始日期", startDatePicker);
+        addFormField(form, 0, 1, "结束日期", endDatePicker);
+        addFormField(form, 0, 2, "任一国家", anyCountryField);
+        addFormField(form, 1, 0, "Actor1", actor1Field);
+        addFormField(form, 1, 1, "Actor2", actor2Field);
+        addFormField(form, 1, 2, "事件类型", eventTypeBox);
+        form.add(new HBox(10, searchButton, clearButton), 3, 0, 1, 2);
+
+        Label statusText = new Label("设置筛选条件后点击查询。默认最多显示 500 条。");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        TableView<EventQueryResult> table = createEventTable();
+        ObservableList<EventQueryResult> tableItems = FXCollections.observableArrayList();
+        table.setItems(tableItems);
+
+        searchButton.setOnAction(event -> {
+            EventTypeOption selectedType = eventTypeBox.getSelectionModel().getSelectedItem();
+            EventQueryCriteria criteria = new EventQueryCriteria(
+                    startDatePicker.getValue(),
+                    endDatePicker.getValue(),
+                    anyCountryField.getText(),
+                    actor1Field.getText(),
+                    actor2Field.getText(),
+                    selectedType == null ? null : selectedType.type(),
+                    EventQueryCriteria.DEFAULT_LIMIT
+            );
+            Task<List<EventQueryResult>> queryTask = new Task<>() {
+                @Override
+                protected List<EventQueryResult> call() {
+                    return new EventQueryService(new DatabaseManager(paths)).search(criteria);
+                }
+            };
+            searchButton.setDisable(true);
+            clearButton.setDisable(true);
+            statusText.setText("正在查询，请稍候...");
+            queryTask.setOnSucceeded(workerEvent -> {
+                List<EventQueryResult> results = queryTask.getValue();
+                tableItems.setAll(results);
+                statusText.setText(results.isEmpty()
+                        ? "未查询到符合条件的事件。"
+                        : "查询完成，共显示 " + results.size() + " 条事件。");
+                searchButton.setDisable(false);
+                clearButton.setDisable(false);
+            });
+            queryTask.setOnFailed(workerEvent -> {
+                Throwable exception = queryTask.getException();
+                statusText.setText("查询失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+                searchButton.setDisable(false);
+                clearButton.setDisable(false);
+            });
+            Thread thread = new Thread(queryTask, "gdelt-query-task");
+            thread.setDaemon(true);
+            thread.start();
+        });
+
+        clearButton.setOnAction(event -> {
+            startDatePicker.setValue(null);
+            endDatePicker.setValue(null);
+            anyCountryField.clear();
+            actor1Field.clear();
+            actor2Field.clear();
+            eventTypeBox.getSelectionModel().selectFirst();
+            tableItems.clear();
+            statusText.setText("筛选条件已清空。");
+        });
+
+        body.getChildren().addAll(form, statusText, table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
     private VBox createPageBase(String titleText, String descriptionText) {
         VBox body = new VBox(18);
         body.getStyleClass().add("content");
@@ -299,6 +414,42 @@ public class MainView {
         Separator separator = new Separator();
         body.getChildren().addAll(heading, separator);
         return body;
+    }
+
+    private void addFormField(GridPane grid, int row, int column, String labelText, javafx.scene.Node control) {
+        VBox box = new VBox(6);
+        Label label = new Label(labelText);
+        label.getStyleClass().add("form-label");
+        box.getChildren().addAll(label, control);
+        GridPane.setHgrow(box, Priority.ALWAYS);
+        grid.add(box, column, row);
+    }
+
+    private TableView<EventQueryResult> createEventTable() {
+        TableView<EventQueryResult> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("未查询到符合条件的事件。"));
+
+        table.getColumns().add(textColumn("事件ID", "globalEventId", 110));
+        table.getColumns().add(textColumn("日期", "eventDate", 95));
+        table.getColumns().add(textColumn("Actor1", "actor1CountryCode", 80));
+        table.getColumns().add(textColumn("Actor2", "actor2CountryCode", 80));
+        table.getColumns().add(textColumn("类型", "eventType", 95));
+        table.getColumns().add(textColumn("Root", "eventRootCode", 70));
+        table.getColumns().add(textColumn("Goldstein", "goldsteinScale", 90));
+        table.getColumns().add(textColumn("Mentions", "numMentions", 90));
+        table.getColumns().add(textColumn("AvgTone", "avgTone", 85));
+        table.getColumns().add(textColumn("来源文件", "sourceFile", 180));
+        table.setMinHeight(360);
+        return table;
+    }
+
+    private TableColumn<EventQueryResult, Object> textColumn(String title, String property, double width) {
+        TableColumn<EventQueryResult, Object> column = new TableColumn<>(title);
+        column.setCellValueFactory(new PropertyValueFactory<>(property));
+        column.setPrefWidth(width);
+        return column;
     }
 
     private Parent wrapScrollable(VBox body) {
@@ -481,5 +632,12 @@ public class MainView {
     }
 
     private record PageSpec(String title, String description) {
+    }
+
+    private record EventTypeOption(String label, EventType type) {
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 }

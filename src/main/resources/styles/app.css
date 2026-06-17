@@ -240,3 +240,18 @@
 .error-samples {
     -fx-text-fill: #7a2f2f;
 }
+
+.query-form {
+    -fx-padding: 18;
+    -fx-background-color: white;
+    -fx-border-color: #d8e0e8;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.event-table {
+    -fx-background-color: white;
+    -fx-border-color: #d8e0e8;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
