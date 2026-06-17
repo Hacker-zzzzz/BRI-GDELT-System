@@ -2,6 +2,8 @@ package edu.course.brigdelt.repository;
 
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
+import edu.course.brigdelt.domain.CountryEventStat;
+import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.GdeltEvent;
@@ -246,6 +248,104 @@ public class GdeltEventRepository {
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("双边月度趋势查询失败。", exception);
+        }
+    }
+
+    public DashboardSummary loadDashboardSummary(int countryCount, int importBatches) {
+        String sql = """
+                SELECT
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    SUM(CASE WHEN event_type = 'OTHER' THEN 1 ELSE 0 END) AS other_events,
+                    SUM(num_mentions) AS total_mentions,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone
+                FROM gdelt_events
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            if (!resultSet.next()) {
+                return new DashboardSummary(countryCount, 0, 0, 0, 0, importBatches, 0, 0, 0);
+            }
+            return new DashboardSummary(
+                    countryCount,
+                    resultSet.getInt("total_events"),
+                    resultSet.getInt("cooperation_events"),
+                    resultSet.getInt("conflict_events"),
+                    resultSet.getInt("other_events"),
+                    importBatches,
+                    resultSet.getInt("total_mentions"),
+                    resultSet.getDouble("average_goldstein"),
+                    resultSet.getDouble("average_avg_tone")
+            );
+        } catch (SQLException exception) {
+            throw new IllegalStateException("首页仪表盘统计失败。", exception);
+        }
+    }
+
+    public List<CountryEventStat> queryTopCountriesByEvents(int limit) {
+        String sql = """
+                SELECT country_code, COUNT(*) AS event_count
+                FROM (
+                    SELECT actor1_country_code AS country_code FROM gdelt_events WHERE actor1_country_code IS NOT NULL
+                    UNION ALL
+                    SELECT actor2_country_code AS country_code FROM gdelt_events WHERE actor2_country_code IS NOT NULL
+                )
+                WHERE country_code IS NOT NULL AND TRIM(country_code) <> ''
+                GROUP BY country_code
+                ORDER BY event_count DESC, country_code
+                LIMIT ?
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, limit <= 0 ? 8 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<CountryEventStat> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(new CountryEventStat(
+                            resultSet.getString("country_code"),
+                            resultSet.getInt("event_count")
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("国家事件量排行查询失败。", exception);
+        }
+    }
+
+    public List<MonthlyTrendPoint> queryOverallMonthlyTrend() {
+        String sql = """
+                SELECT
+                    substr(event_date, 1, 7) AS month,
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone
+                FROM gdelt_events
+                GROUP BY substr(event_date, 1, 7)
+                ORDER BY month
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<MonthlyTrendPoint> results = new ArrayList<>();
+            while (resultSet.next()) {
+                results.add(new MonthlyTrendPoint(
+                        resultSet.getString("month"),
+                        resultSet.getInt("total_events"),
+                        resultSet.getInt("cooperation_events"),
+                        resultSet.getInt("conflict_events"),
+                        resultSet.getDouble("average_goldstein"),
+                        resultSet.getDouble("average_avg_tone")
+                ));
+            }
+            return results;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("整体月度趋势查询失败。", exception);
         }
     }
 

@@ -2,6 +2,8 @@ package edu.course.brigdelt.ui;
 
 import edu.course.brigdelt.config.AppPaths;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
+import edu.course.brigdelt.domain.CountryEventStat;
+import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.EventType;
@@ -9,11 +11,18 @@ import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.repository.DatabaseManager;
 import edu.course.brigdelt.service.BilateralRelationService;
+import edu.course.brigdelt.service.DashboardService;
 import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.PieChart;
+import javafx.scene.chart.XYChart;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.geometry.Insets;
@@ -75,7 +84,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.4 双边分析 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.5 仪表盘 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -154,20 +163,133 @@ public class MainView {
     private Parent createDashboardPage(PageSpec page) {
         VBox body = createPageBase(page.title(), page.description());
 
-        HBox cards = new HBox(14);
-        cards.getStyleClass().add("summary-row");
-        cards.getChildren().addAll(
-                createSummaryCard("运行状态", "已完成初始化", "运行目录、配置目录与数据库目录已就绪"),
-                createSummaryCard("数据层", "SQLite", "数据库文件路径已生成，等待导入任务写入"),
-                createSummaryCard("配置", "国家清单", "国家配置文件用于后续国家过滤与映射")
+        Label statusText = new Label("正在加载仪表盘数据...");
+        statusText.getStyleClass().add("import-status");
+
+        HBox firstRow = new HBox(14);
+        firstRow.getStyleClass().add("summary-row");
+        HBox secondRow = new HBox(14);
+        secondRow.getStyleClass().add("summary-row");
+        Label countryValue = metricValue("0");
+        Label eventValue = metricValue("0");
+        Label cooperationValue = metricValue("0");
+        Label conflictValue = metricValue("0");
+        Label importValue = metricValue("0");
+        Label mentionValue = metricValue("0");
+        Label goldsteinValue = metricValue("0.00");
+        Label toneValue = metricValue("0.00");
+        firstRow.getChildren().addAll(
+                createMetricCard("沿线国家", countryValue, "当前配置国家数", "neutral-card"),
+                createMetricCard("事件总量", eventValue, "已入库 GDELT 事件", "neutral-card"),
+                createMetricCard("合作事件", cooperationValue, "EventRoot 04/05/06", "positive-card"),
+                createMetricCard("冲突事件", conflictValue, "EventRoot 08-14", "negative-card")
+        );
+        secondRow.getChildren().addAll(
+                createMetricCard("导入批次", importValue, "历史导入记录", "neutral-card"),
+                createMetricCard("媒体关注度", mentionValue, "NumMentions 总和", "neutral-card"),
+                createMetricCard("平均 Goldstein", goldsteinValue, "合作冲突强度", "neutral-card"),
+                createMetricCard("平均 AvgTone", toneValue, "媒体语调均值", "neutral-card")
         );
 
-        GridPane pathGrid = createPathGrid();
-        VBox placeholder = createComponentPlaceholder("后续首页组件",
-                "导入批次概览、事件数量统计、合作热度趋势、风险提示摘要");
+        PieChart typePieChart = new PieChart();
+        typePieChart.setTitle("事件类型结构");
+        typePieChart.setLegendVisible(true);
 
-        body.getChildren().addAll(cards, pathGrid, placeholder);
+        BarChart<String, Number> topCountryChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        topCountryChart.setTitle("国家事件量 TOP8");
+        topCountryChart.setLegendVisible(false);
+
+        LineChart<String, Number> monthlyTrendChart = new LineChart<>(new CategoryAxis(), new NumberAxis());
+        monthlyTrendChart.setTitle("月度事件趋势");
+        monthlyTrendChart.setLegendVisible(false);
+        monthlyTrendChart.setCreateSymbols(true);
+
+        HBox chartRow = new HBox(14,
+                wrapChart(typePieChart),
+                wrapChart(topCountryChart)
+        );
+        chartRow.getStyleClass().add("chart-row");
+
+        body.getChildren().addAll(statusText, firstRow, secondRow, chartRow, wrapChart(monthlyTrendChart));
+        loadDashboard(statusText, countryValue, eventValue, cooperationValue, conflictValue, importValue,
+                mentionValue, goldsteinValue, toneValue, typePieChart, topCountryChart, monthlyTrendChart);
         return wrapScrollable(body);
+    }
+
+    private void loadDashboard(Label statusText, Label countryValue, Label eventValue, Label cooperationValue,
+                               Label conflictValue, Label importValue, Label mentionValue, Label goldsteinValue,
+                               Label toneValue, PieChart typePieChart,
+                               BarChart<String, Number> topCountryChart,
+                               LineChart<String, Number> monthlyTrendChart) {
+        Task<DashboardViewData> task = new Task<>() {
+            @Override
+            protected DashboardViewData call() {
+                DashboardService service = new DashboardService(new DatabaseManager(paths));
+                return new DashboardViewData(
+                        service.loadSummary(),
+                        service.topCountries(8),
+                        service.monthlyTrend()
+                );
+            }
+        };
+        task.setOnSucceeded(event -> {
+            DashboardViewData data = task.getValue();
+            DashboardSummary summary = data.summary();
+            countryValue.setText(String.valueOf(summary.countryCount()));
+            eventValue.setText(String.valueOf(summary.totalEvents()));
+            cooperationValue.setText(String.valueOf(summary.cooperationEvents()));
+            conflictValue.setText(String.valueOf(summary.conflictEvents()));
+            importValue.setText(String.valueOf(summary.importBatches()));
+            mentionValue.setText(String.valueOf(summary.totalMentions()));
+            goldsteinValue.setText("%.2f".formatted(summary.averageGoldstein()));
+            toneValue.setText("%.2f".formatted(summary.averageAvgTone()));
+            updateTypePieChart(typePieChart, summary);
+            updateTopCountryChart(topCountryChart, data.topCountries());
+            updateMonthlyTrendChart(monthlyTrendChart, data.monthlyTrend());
+            statusText.setText(summary.totalEvents() == 0
+                    ? "暂无事件数据。请先通过数据导入或演示数据库准备分线写入数据。"
+                    : "仪表盘已加载：" + summary.totalEvents() + " 条事件，"
+                    + summary.importBatches() + " 个导入批次。");
+        });
+        task.setOnFailed(event -> {
+            Throwable exception = task.getException();
+            statusText.setText("仪表盘加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+        });
+        Thread thread = new Thread(task, "dashboard-load-task");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private VBox wrapChart(javafx.scene.Node chart) {
+        VBox box = new VBox(chart);
+        box.getStyleClass().add("chart-panel");
+        VBox.setVgrow(chart, Priority.ALWAYS);
+        HBox.setHgrow(box, Priority.ALWAYS);
+        return box;
+    }
+
+    private void updateTypePieChart(PieChart chart, DashboardSummary summary) {
+        chart.setData(FXCollections.observableArrayList(
+                new PieChart.Data("合作", summary.cooperationEvents()),
+                new PieChart.Data("冲突", summary.conflictEvents()),
+                new PieChart.Data("其他", summary.otherEvents())
+        ));
+    }
+
+    private void updateTopCountryChart(BarChart<String, Number> chart, List<CountryEventStat> stats) {
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        for (CountryEventStat stat : stats) {
+            series.getData().add(new XYChart.Data<>(stat.countryCode(), stat.eventCount()));
+        }
+        chart.getData().setAll(series);
+    }
+
+    private void updateMonthlyTrendChart(LineChart<String, Number> chart, List<MonthlyTrendPoint> trends) {
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        for (MonthlyTrendPoint point : trends) {
+            series.getData().add(new XYChart.Data<>(point.month(), point.totalEvents()));
+        }
+        chart.getData().setAll(series);
     }
 
     private Parent createImportPage(PageSpec page) {
@@ -822,6 +944,13 @@ public class MainView {
             BilateralRelationSummary summary,
             List<MonthlyTrendPoint> trends,
             List<EventQueryResult> events
+    ) {
+    }
+
+    private record DashboardViewData(
+            DashboardSummary summary,
+            List<CountryEventStat> topCountries,
+            List<MonthlyTrendPoint> monthlyTrend
     ) {
     }
 }

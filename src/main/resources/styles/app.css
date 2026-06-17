@@ -284,3 +284,16 @@
     -fx-text-fill: #25364a;
     -fx-padding: 6 0 0 0;
 }
+
+.chart-row {
+    -fx-spacing: 14;
+}
+
+.chart-panel {
+    -fx-padding: 12;
+    -fx-min-height: 280px;
+    -fx-background-color: white;
+    -fx-border-color: #d8e0e8;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
