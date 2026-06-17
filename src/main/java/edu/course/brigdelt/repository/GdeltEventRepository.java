@@ -7,6 +7,7 @@ import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
+import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.GdeltEvent;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
@@ -454,6 +455,43 @@ public class GdeltEventRepository {
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("风险评估国家排名查询失败。", exception);
+        }
+    }
+
+    public List<GeoEventPoint> queryGeoEventPoints(int limit) {
+        String sql = """
+                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                       event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+                FROM gdelt_events
+                WHERE action_geo_lat IS NOT NULL
+                  AND action_geo_lon IS NOT NULL
+                  AND action_geo_lat BETWEEN -90 AND 90
+                  AND action_geo_lon BETWEEN -180 AND 180
+                ORDER BY event_date DESC, global_event_id DESC
+                LIMIT ?
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, limit <= 0 ? 500 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<GeoEventPoint> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(new GeoEventPoint(
+                            resultSet.getString("global_event_id"),
+                            LocalDate.parse(resultSet.getString("event_date")),
+                            resultSet.getString("actor1_country_code"),
+                            resultSet.getString("actor2_country_code"),
+                            parseEventType(resultSet.getString("event_type")),
+                            resultSet.getDouble("action_geo_lat"),
+                            resultSet.getDouble("action_geo_lon"),
+                            resultSet.getDouble("goldstein_scale"),
+                            resultSet.getDouble("avg_tone")
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("专题地图事件点位查询失败。", exception);
         }
     }
 

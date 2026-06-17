@@ -8,6 +8,7 @@ import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
 import edu.course.brigdelt.domain.EventType;
+import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
@@ -17,6 +18,7 @@ import edu.course.brigdelt.service.BilateralRelationService;
 import edu.course.brigdelt.service.DashboardService;
 import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
+import edu.course.brigdelt.service.MapVisualizationService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.beans.property.ReadOnlyObjectWrapper;
@@ -26,6 +28,7 @@ import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.PieChart;
+import javafx.scene.chart.ScatterChart;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
@@ -90,7 +93,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.7 展示增强 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v0.8 专题地图 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -163,6 +166,7 @@ public class MainView {
             case "双边关系" -> createBilateralPage();
             case "合作态势分析" -> createCooperationAnalysisPage();
             case "风险评估" -> createRiskAssessmentPage();
+            case "专题地图" -> createMapPage();
             default -> createPlaceholderPage(page);
         };
         contentHost.getChildren().setAll(content);
@@ -327,6 +331,26 @@ public class MainView {
         chart.getData().setAll(series);
     }
 
+    private void updateGeoScatterChart(ScatterChart<Number, Number> chart, List<GeoEventPoint> points) {
+        XYChart.Series<Number, Number> cooperation = new XYChart.Series<>();
+        cooperation.setName("合作");
+        XYChart.Series<Number, Number> conflict = new XYChart.Series<>();
+        conflict.setName("冲突");
+        XYChart.Series<Number, Number> other = new XYChart.Series<>();
+        other.setName("其他");
+        for (GeoEventPoint point : points) {
+            XYChart.Data<Number, Number> data = new XYChart.Data<>(point.longitude(), point.latitude());
+            if (point.eventType() == EventType.COOPERATION) {
+                cooperation.getData().add(data);
+            } else if (point.eventType() == EventType.CONFLICT) {
+                conflict.getData().add(data);
+            } else {
+                other.getData().add(data);
+            }
+        }
+        chart.getData().setAll(cooperation, conflict, other);
+    }
+
     private String buildDashboardInsight(DashboardSummary summary, List<CountryEventStat> topCountries,
                                          List<MonthlyTrendPoint> monthlyTrend) {
         if (summary.totalEvents() == 0) {
@@ -368,6 +392,22 @@ public class MainView {
                 + "，等级为" + top.riskLevel()
                 + "。当前列表中高风险及以上国家 " + highRiskCountries
                 + " 个，可作为后续重点解释和事件溯源对象。";
+    }
+
+    private String buildMapInsight(List<GeoEventPoint> points) {
+        if (points.isEmpty()) {
+            return "暂无有效地理点位。导入包含 ActionGeo 经纬度的 GDELT 文件后，可展示沿线事件空间分布。";
+        }
+        long cooperation = points.stream().filter(point -> point.eventType() == EventType.COOPERATION).count();
+        long conflict = points.stream().filter(point -> point.eventType() == EventType.CONFLICT).count();
+        double averageLatitude = points.stream().mapToDouble(GeoEventPoint::latitude).average().orElse(0);
+        double averageLongitude = points.stream().mapToDouble(GeoEventPoint::longitude).average().orElse(0);
+        return "当前点位样本共 " + points.size()
+                + " 条，合作点位 " + cooperation
+                + " 条，冲突点位 " + conflict
+                + " 条。点位中心约为纬度 " + "%.2f".formatted(averageLatitude)
+                + "、经度 " + "%.2f".formatted(averageLongitude)
+                + "，可用于说明事件在沿线区域的空间集聚特征。";
     }
 
     private Parent createImportPage(PageSpec page) {
@@ -734,6 +774,65 @@ public class MainView {
         return wrapScrollable(body);
     }
 
+    private Parent createMapPage() {
+        VBox body = createPageBase("一带一路事件专题地图", "基于 GDELT ActionGeo 经纬度字段，展示沿线事件空间分布和代表性地理事件。");
+
+        Label statusText = new Label("正在加载地理事件点位...");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        NumberAxis longitudeAxis = new NumberAxis(-180, 180, 30);
+        longitudeAxis.setLabel("经度");
+        NumberAxis latitudeAxis = new NumberAxis(-90, 90, 15);
+        latitudeAxis.setLabel("纬度");
+        ScatterChart<Number, Number> scatterChart = new ScatterChart<>(longitudeAxis, latitudeAxis);
+        scatterChart.setTitle("事件空间分布（经度 / 纬度）");
+        scatterChart.setLegendVisible(true);
+        scatterChart.setAnimated(false);
+
+        Label insightText = new Label("等待点位加载后生成空间研判。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("空间分布研判", insightText);
+        VBox formulaPanel = createFormulaPanel("地图口径说明",
+                "本页使用 GDELT 的 ActionGeo_Lat 与 ActionGeo_Long 字段。散点代表事件发生地，颜色按合作、冲突、其他三类区分，用于展示事件空间集聚趋势。");
+
+        HBox mapRow = new HBox(14, wrapChart(scatterChart), new VBox(14, insightPanel, formulaPanel));
+        mapRow.getStyleClass().add("chart-row");
+
+        TableView<GeoEventPoint> table = createGeoEventTable();
+        ObservableList<GeoEventPoint> items = FXCollections.observableArrayList();
+        table.setItems(items);
+
+        Task<List<GeoEventPoint>> task = new Task<>() {
+            @Override
+            protected List<GeoEventPoint> call() {
+                return new MapVisualizationService(new DatabaseManager(paths))
+                        .geoEventPoints(MapVisualizationService.DEFAULT_POINT_LIMIT);
+            }
+        };
+        task.setOnSucceeded(event -> {
+            List<GeoEventPoint> points = task.getValue();
+            items.setAll(points);
+            updateGeoScatterChart(scatterChart, points);
+            insightText.setText(buildMapInsight(points));
+            statusText.setText(points.isEmpty()
+                    ? "暂无包含有效经纬度的事件。"
+                    : "专题地图已加载，共显示 " + points.size() + " 个有效事件点位。");
+        });
+        task.setOnFailed(event -> {
+            Throwable exception = task.getException();
+            statusText.setText("专题地图加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+        });
+        Thread thread = new Thread(task, "map-visualization-task");
+        thread.setDaemon(true);
+        thread.start();
+
+        body.getChildren().addAll(statusText, mapRow, createSectionTitle("地理事件明细"), table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
     private Parent createEventQueryPage(PageSpec page) {
         VBox body = createPageBase(page.title(), page.description());
 
@@ -937,6 +1036,24 @@ public class MainView {
                 risk -> "%.1f".formatted(risk.riskIndex())));
         table.getColumns().add(valueColumn("风险等级", 100, RiskAssessment::riskLevel));
         table.setMinHeight(420);
+        return table;
+    }
+
+    private TableView<GeoEventPoint> createGeoEventTable() {
+        TableView<GeoEventPoint> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无地理事件点位。"));
+        table.getColumns().add(valueColumn("事件ID", 110, GeoEventPoint::globalEventId));
+        table.getColumns().add(valueColumn("日期", 95, GeoEventPoint::eventDate));
+        table.getColumns().add(valueColumn("Actor1", 80, GeoEventPoint::actor1CountryCode));
+        table.getColumns().add(valueColumn("Actor2", 80, GeoEventPoint::actor2CountryCode));
+        table.getColumns().add(valueColumn("类型", 95, GeoEventPoint::eventType));
+        table.getColumns().add(valueColumn("纬度", 90, point -> "%.4f".formatted(point.latitude())));
+        table.getColumns().add(valueColumn("经度", 90, point -> "%.4f".formatted(point.longitude())));
+        table.getColumns().add(valueColumn("Goldstein", 95, point -> "%.2f".formatted(point.goldsteinScale())));
+        table.getColumns().add(valueColumn("AvgTone", 90, point -> "%.2f".formatted(point.avgTone())));
+        table.setMinHeight(320);
         return table;
     }
 
