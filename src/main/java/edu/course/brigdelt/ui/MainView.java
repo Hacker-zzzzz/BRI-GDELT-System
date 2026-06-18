@@ -67,8 +67,9 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * Builds the v0.1 JavaFX application shell.
+ * Builds the JavaFX desktop UI for the BRI GDELT analysis system.
  */
+@SuppressWarnings("unchecked")
 public class MainView {
 
     private final AppPaths paths;
@@ -95,7 +96,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v0.9 结果导出 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v1.0 答辩演示版 · JavaFX + Maven + SQLite");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -125,14 +126,14 @@ public class MainView {
         sectionTitle.getStyleClass().add("section-title");
 
         List<PageSpec> pages = List.of(
-                new PageSpec("首页仪表盘", "展示系统启动状态、运行路径和下一步建设重点。"),
-                new PageSpec("数据导入", "预留 GDELT 文件选择、导入校验、进度监控和批次记录。"),
-                new PageSpec("事件查询", "预留按时间、国家、事件类型和关键词检索事件的查询区。"),
-                new PageSpec("双边关系", "预留双边国家选择、关系指标概览和事件明细联动。"),
-                new PageSpec("合作态势分析", "预留合作热度、趋势变化、主题分布和对比分析组件。"),
-                new PageSpec("风险评估", "预留风险指数、异常事件、预警等级和处置建议展示。"),
-                new PageSpec("专题地图", "预留沿线国家空间分布、事件聚合和专题图层控制。"),
-                new PageSpec("结果导出", "预留报告、图表、查询结果和分析结论导出入口。")
+                new PageSpec("首页仪表盘", "汇总事件总量、合作冲突结构、国家热度、月度趋势和总体研判。"),
+                new PageSpec("数据导入", "导入 GDELT CSV/TSV/ZIP 文件，完成清洗、过滤、入库和批次记录。"),
+                new PageSpec("事件查询", "按日期、国家代码和事件类型检索已入库 GDELT 事件。"),
+                new PageSpec("双边关系", "分析中国与沿线国家的合作冲突结构、月度趋势和事件明细。"),
+                new PageSpec("合作态势分析", "按国家聚合合作事件、媒体关注度和 Goldstein 指标，形成合作指数排名。"),
+                new PageSpec("风险评估", "按冲突占比、负向 Goldstein 和媒体语调形成国家风险指数。"),
+                new PageSpec("专题地图", "基于 ActionGeo 经纬度展示事件空间分布和地理事件明细。"),
+                new PageSpec("结果导出", "生成汇总报告、合作排名 CSV 和风险排名 CSV，服务答辩材料整理。")
         );
 
         ListView<PageSpec> modules = new ListView<>(FXCollections.observableArrayList(pages));
@@ -1369,44 +1370,44 @@ public class MainView {
     private String[] componentHintsFor(String title) {
         return switch (title) {
             case "数据导入" -> new String[]{
-                    "文件选择、目录扫描、导入参数和国家过滤规则占位。",
-                    "导入进度、校验结果、成功失败数量和批次状态占位。",
-                    "导入日志、错误样例、批次元数据和重试入口占位。"
+                    "选择 GDELT CSV、TSV 或 ZIP 文件并启动后台导入。",
+                    "显示导入进度、成功行数、跳过行数和批次状态。",
+                    "展示错误样例和导入摘要，便于排查数据质量问题。"
             };
             case "事件查询" -> new String[]{
-                    "时间范围、国家、事件类型、Goldstein 分值和关键词筛选占位。",
-                    "事件列表、分页、排序和重点字段展示占位。",
-                    "事件详情、原始字段、来源链接和备注说明占位。"
+                    "按日期范围、任一国家、Actor1、Actor2 和事件类型筛选。",
+                    "以表格展示事件编号、日期、国家、事件类型和指标字段。",
+                    "查询为空或日期错误时给出中文提示。"
             };
             case "双边关系" -> new String[]{
-                    "源国家、目标国家、时间窗口和指标口径选择占位。",
-                    "双边互动强度、合作冲突对比和趋势图占位。",
-                    "代表性事件、指标解释和数据质量提示占位。"
+                    "默认以 CHN 为国家 A，输入沿线国家代码进行分析。",
+                    "展示总事件数、合作/冲突占比、Goldstein、AvgTone 和媒体关注度。",
+                    "提供月度趋势与双边事件明细，支持答辩现场讲解。"
             };
             case "合作态势分析" -> new String[]{
-                    "区域、国家组、主题类别和统计周期选择占位。",
-                    "合作热度趋势、主题分布、国家排名和对比图占位。",
-                    "分析结论摘要、异常波动说明和后续研判占位。"
+                    "按国家聚合合作事件、冲突事件、媒体关注度和关系强度。",
+                    "展示合作指数排名、最高合作国家和合作事件合计。",
+                    "提供合作指数口径说明，便于解释分析模型。"
             };
             case "风险评估" -> new String[]{
-                    "风险类型、国家范围、预警阈值和时间窗口设置占位。",
-                    "风险指数卡片、等级分布、趋势变化和预警列表占位。",
-                    "风险事件明细、触发原因和建议措施占位。"
+                    "按国家聚合冲突事件、冲突占比、负向 Goldstein 和媒体语调。",
+                    "展示风险指数排名、最高风险国家和高风险国家数量。",
+                    "提供低、中、高、极高四档风险等级说明。"
             };
             case "专题地图" -> new String[]{
-                    "图层类型、时间范围、事件类型和国家筛选占位。",
-                    "沿线国家地图、事件聚合点、热力分布和图例占位。",
-                    "区域统计、地图选择结果和专题说明占位。"
+                    "使用 ActionGeo_Lat 和 ActionGeo_Long 绘制事件空间散点。",
+                    "按合作、冲突、其他事件分类着色并展示空间分布研判。",
+                    "以表格列出地理事件明细和核心指标。"
             };
             case "结果导出" -> new String[]{
-                    "导出对象、文件格式、时间范围和报告模板选择占位。",
-                    "导出任务队列、生成状态、文件大小和完成时间占位。",
-                    "历史导出记录、保存路径和操作说明占位。"
+                    "一键生成 TXT 汇总报告、合作排名 CSV 和风险排名 CSV。",
+                    "显示导出耗时和生成文件路径。",
+                    "导出文件可直接整理进实验报告、PPT 或表格软件。"
             };
             default -> new String[]{
-                    "页面筛选条件和操作按钮占位。",
-                    "主要图表、表格或地图展示占位。",
-                    "明细记录、解释说明和后续操作占位。"
+                    "页面提供筛选条件和操作按钮。",
+                    "核心区域展示图表、表格或地图结果。",
+                    "明细区域提供记录、解释说明和后续操作入口。"
             };
         };
     }

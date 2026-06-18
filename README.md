@@ -1,19 +1,31 @@
 # 一带一路沿线国家合作态势分析系统
 
-Java 程序设计期末大作业阶段 1 骨架版本。
+Java 程序设计期末大作业。系统基于 GDELT 2.0 Event 数据，使用 JavaFX + SQLite 实现一带一路沿线国家事件导入、查询、双边关系分析、合作态势分析、风险评估、专题地图和结果导出。
 
-## 当前范围
+## 当前功能
 
-- Maven 标准工程结构
-- JavaFX 主窗口骨架
-- SQLite 数据库初始化
-- `D:\Temp\BRI-GDELT-System` 运行时目录约定
-- 基础一带一路国家配置模板
+- GDELT `.CSV/.tsv/.zip` 文件导入、清洗、国家过滤和批量入库
+- 首页仪表盘：事件结构、国家热度、月度趋势和总体研判
+- 事件查询：日期、国家代码、事件类型筛选
+- 双边关系：中国与沿线国家合作/冲突结构、趋势和明细
+- 合作态势分析：国家合作指数排名和口径说明
+- 风险评估：国家风险指数、风险等级和口径说明
+- 专题地图：基于 ActionGeo 经纬度的事件空间分布
+- 结果导出：TXT 汇总报告、合作排名 CSV、风险排名 CSV
 
 ## 运行方式
 
+请先进入项目目录：
+
 ```powershell
+cd D:\Code\BRI-GDELT-System
 mvn javafx:run
+```
+
+如果 Maven 插件前缀解析失败，使用完整插件命令：
+
+```powershell
+mvn org.openjfx:javafx-maven-plugin:0.0.8:run
 ```
 
 非界面启动自检：
@@ -22,25 +34,36 @@ mvn javafx:run
 mvn exec:java "-Dexec.mainClass=edu.course.brigdelt.StartupCheck"
 ```
 
-首次启动会创建以下运行时目录：
+## 运行期目录
+
+所有运行期数据统一放在：
 
 ```text
 D:\Temp\BRI-GDELT-System
-  data
-  db
-  exports
-  logs
-  config
 ```
 
-SQLite 数据库文件：
+主要目录：
 
 ```text
-D:\Temp\BRI-GDELT-System\db\bri_gdelt.db
+input      GDELT 原始 zip/csv/tsv 输入文件
+sample     小型样例文件
+database   SQLite 数据库 bri_gdelt.db
+exports    CSV 导出结果
+reports    TXT 报告导出结果
+logs       日志目录
+cache      缓存目录
 ```
 
-国家配置文件：
+## 演示建议
 
-```text
-D:\Temp\BRI-GDELT-System\config\countries.json
-```
+推荐按以下顺序演示：
+
+1. 首页仪表盘
+2. 事件查询
+3. 双边关系
+4. 合作态势分析
+5. 风险评估
+6. 专题地图
+7. 结果导出
+
+详细演示和提交材料说明见 `docs/demo_submission_guide.md`。
