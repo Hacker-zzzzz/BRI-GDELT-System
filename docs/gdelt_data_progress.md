@@ -71,3 +71,23 @@ scripts/import-gdelt-input.ps1
 ```
 
 4. 如果时间紧，当前 7 天已导入数据已经足够继续做查询、仪表盘、合作/冲突统计和基础趋势展示。
+
+## 下载脚本优化记录
+
+`scripts/download-gdelt-data.ps1` 已优化为：
+
+- 先读取 GDELT 官方 `masterfilelist.txt`
+- 只下载官方清单中真实存在的 `.export.CSV.zip`
+- 默认缓存官方清单 12 小时，避免每次重复拉取大清单
+- 支持 `-ThrottleLimit` 并发下载，默认并发数为 8
+- 支持 `-ListOnly` 只查看某个日期范围实际存在多少文件
+
+示例：
+
+```powershell
+scripts/download-gdelt-data.ps1 -Dates 20250601 -ListOnly
+scripts/download-gdelt-data.ps1 -Dates 20250601,20250602 -ThrottleLimit 8
+scripts/download-gdelt-data.ps1 -Dates 20250601 -RefreshMasterList
+```
+
+注意：官方清单显示 `20250615` 和 `20250616` 当前没有对应的 Event 文件，因此这些日期不应继续硬跑枚举下载。
