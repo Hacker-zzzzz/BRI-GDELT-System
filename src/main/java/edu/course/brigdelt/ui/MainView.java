@@ -50,7 +50,6 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -1071,16 +1070,16 @@ public class MainView {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(new Label("未查询到符合条件的事件。"));
 
-        table.getColumns().add(textColumn("事件ID", "globalEventId", 110));
-        table.getColumns().add(textColumn("日期", "eventDate", 95));
-        table.getColumns().add(textColumn("Actor1", "actor1CountryCode", 80));
-        table.getColumns().add(textColumn("Actor2", "actor2CountryCode", 80));
-        table.getColumns().add(textColumn("类型", "eventType", 95));
-        table.getColumns().add(textColumn("Root", "eventRootCode", 70));
-        table.getColumns().add(textColumn("Goldstein", "goldsteinScale", 90));
-        table.getColumns().add(textColumn("Mentions", "numMentions", 90));
-        table.getColumns().add(textColumn("AvgTone", "avgTone", 85));
-        table.getColumns().add(textColumn("来源文件", "sourceFile", 180));
+        table.getColumns().add(valueColumn("事件ID", 110, EventQueryResult::globalEventId));
+        table.getColumns().add(valueColumn("日期", 95, EventQueryResult::eventDate));
+        table.getColumns().add(valueColumn("Actor1", 80, EventQueryResult::actor1CountryCode));
+        table.getColumns().add(valueColumn("Actor2", 80, EventQueryResult::actor2CountryCode));
+        table.getColumns().add(valueColumn("类型", 95, EventQueryResult::eventType));
+        table.getColumns().add(valueColumn("Root", 70, EventQueryResult::eventRootCode));
+        table.getColumns().add(valueColumn("Goldstein", 90, result -> "%.2f".formatted(result.goldsteinScale())));
+        table.getColumns().add(valueColumn("Mentions", 90, EventQueryResult::numMentions));
+        table.getColumns().add(valueColumn("AvgTone", 85, result -> "%.2f".formatted(result.avgTone())));
+        table.getColumns().add(valueColumn("来源文件", 180, EventQueryResult::sourceFile));
         table.setMinHeight(360);
         return table;
     }
@@ -1090,12 +1089,12 @@ public class MainView {
         table.getStyleClass().add("event-table");
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(new Label("暂无月度趋势数据。"));
-        table.getColumns().add(trendColumn("月份", "month", 100));
-        table.getColumns().add(trendColumn("总数", "totalEvents", 90));
-        table.getColumns().add(trendColumn("合作", "cooperationEvents", 90));
-        table.getColumns().add(trendColumn("冲突", "conflictEvents", 90));
-        table.getColumns().add(trendColumn("Avg Goldstein", "averageGoldstein", 130));
-        table.getColumns().add(trendColumn("Avg Tone", "averageAvgTone", 120));
+        table.getColumns().add(valueColumn("月份", 100, MonthlyTrendPoint::month));
+        table.getColumns().add(valueColumn("总数", 90, MonthlyTrendPoint::totalEvents));
+        table.getColumns().add(valueColumn("合作", 90, MonthlyTrendPoint::cooperationEvents));
+        table.getColumns().add(valueColumn("冲突", 90, MonthlyTrendPoint::conflictEvents));
+        table.getColumns().add(valueColumn("Avg Goldstein", 130, point -> "%.2f".formatted(point.averageGoldstein())));
+        table.getColumns().add(valueColumn("Avg Tone", 120, point -> "%.2f".formatted(point.averageAvgTone())));
         table.setMinHeight(180);
         return table;
     }
@@ -1157,20 +1156,6 @@ public class MainView {
         table.getColumns().add(valueColumn("AvgTone", 90, point -> "%.2f".formatted(point.avgTone())));
         table.setMinHeight(320);
         return table;
-    }
-
-    private TableColumn<EventQueryResult, Object> textColumn(String title, String property, double width) {
-        TableColumn<EventQueryResult, Object> column = new TableColumn<>(title);
-        column.setCellValueFactory(new PropertyValueFactory<>(property));
-        column.setPrefWidth(width);
-        return column;
-    }
-
-    private TableColumn<MonthlyTrendPoint, Object> trendColumn(String title, String property, double width) {
-        TableColumn<MonthlyTrendPoint, Object> column = new TableColumn<>(title);
-        column.setCellValueFactory(new PropertyValueFactory<>(property));
-        column.setPrefWidth(width);
-        return column;
     }
 
     private <T> TableColumn<T, Object> valueColumn(String title, double width, Function<T, Object> mapper) {
