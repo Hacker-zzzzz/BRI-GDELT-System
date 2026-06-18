@@ -7,6 +7,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -105,6 +106,42 @@ public class CountryRepository {
         } catch (SQLException exception) {
             throw new IllegalStateException("国家 CAMEO code 查询失败。", exception);
         }
+    }
+
+    public List<Country> findAllCountries() {
+        String sql = """
+                SELECT cameo_code, iso_code, name_cn, name_en, region, latitude, longitude,
+                       is_bri_country, is_core_country
+                FROM countries
+                WHERE cameo_code IS NOT NULL AND TRIM(cameo_code) <> ''
+                ORDER BY is_core_country DESC, region, cameo_code
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<Country> countries = new ArrayList<>();
+            while (resultSet.next()) {
+                countries.add(new Country(
+                        resultSet.getString("cameo_code"),
+                        resultSet.getString("iso_code"),
+                        resultSet.getString("name_cn"),
+                        resultSet.getString("name_en"),
+                        resultSet.getString("region"),
+                        nullableDouble(resultSet, "latitude"),
+                        nullableDouble(resultSet, "longitude"),
+                        resultSet.getInt("is_bri_country") == 1,
+                        resultSet.getInt("is_core_country") == 1
+                ));
+            }
+            return countries;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("国家列表查询失败。", exception);
+        }
+    }
+
+    private Double nullableDouble(ResultSet resultSet, String columnName) throws SQLException {
+        double value = resultSet.getDouble(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 
     private void setNullableDouble(PreparedStatement statement, int parameterIndex, Double value)

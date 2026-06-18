@@ -3,6 +3,7 @@ package edu.course.brigdelt.ui;
 import edu.course.brigdelt.config.AppPaths;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
 import edu.course.brigdelt.domain.CooperationScore;
+import edu.course.brigdelt.domain.Country;
 import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
@@ -13,6 +14,7 @@ import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
+import edu.course.brigdelt.repository.CountryRepository;
 import edu.course.brigdelt.repository.DatabaseManager;
 import edu.course.brigdelt.service.AnalysisService;
 import edu.course.brigdelt.service.BilateralRelationService;
@@ -59,10 +61,12 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import javafx.util.StringConverter;
 
 import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Locale;
 import java.util.List;
 import java.util.function.Function;
 
@@ -581,8 +585,7 @@ public class MainView {
         form.setVgap(12);
 
         TextField countryAField = new TextField(BilateralRelationService.DEFAULT_COUNTRY_A);
-        TextField countryBField = new TextField();
-        countryBField.setPromptText("如 KAZ、PAK、KEN");
+        ComboBox<CountryOption> countryBField = createCountryCodeComboBox();
         Button searchButton = new Button("分析");
         searchButton.getStyleClass().add("primary-button");
         Button clearButton = new Button("清空");
@@ -591,7 +594,7 @@ public class MainView {
         addFormField(form, 0, 1, "国家 B", countryBField);
         form.add(new HBox(10, searchButton, clearButton), 2, 0);
 
-        Label statusText = new Label("默认以 CHN 为国家 A，输入沿线国家代码后开始分析。");
+        Label statusText = new Label("默认以 CHN 为国家 A，输入或选择沿线国家代码后开始分析。");
         statusText.getStyleClass().add("import-status");
         statusText.setWrapText(true);
 
@@ -630,7 +633,7 @@ public class MainView {
 
         searchButton.setOnAction(event -> {
             String countryA = countryAField.getText();
-            String countryB = countryBField.getText();
+            String countryB = extractCountryCode(countryBField);
             Task<BilateralViewData> task = new Task<>() {
                 @Override
                 protected BilateralViewData call() {
@@ -671,7 +674,8 @@ public class MainView {
 
         clearButton.setOnAction(event -> {
             countryAField.setText(BilateralRelationService.DEFAULT_COUNTRY_A);
-            countryBField.clear();
+            countryBField.getSelectionModel().clearSelection();
+            countryBField.getEditor().clear();
             trendItems.clear();
             eventItems.clear();
             updateBilateralMetrics(BilateralRelationSummary.empty("CHN", ""), totalValue, cooperationValue,
@@ -1064,6 +1068,94 @@ public class MainView {
         grid.add(box, column, row);
     }
 
+    private ComboBox<CountryOption> createCountryCodeComboBox() {
+        ComboBox<CountryOption> comboBox = new ComboBox<>();
+        comboBox.setEditable(true);
+        comboBox.setPromptText("可输入代码，或点击选择沿线国家");
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+        comboBox.setItems(FXCollections.observableArrayList(loadCountryOptions()));
+        comboBox.setConverter(new StringConverter<>() {
+            @Override
+            public String toString(CountryOption option) {
+                return option == null ? "" : option.code();
+            }
+
+            @Override
+            public CountryOption fromString(String text) {
+                if (text == null || text.isBlank()) {
+                    return null;
+                }
+                String code = normalizeCountryInput(text);
+                return comboBox.getItems().stream()
+                        .filter(option -> option.code().equals(code))
+                        .findFirst()
+                        .orElse(new CountryOption(code, "", ""));
+            }
+        });
+        comboBox.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(CountryOption item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.displayText());
+            }
+        });
+        comboBox.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(CountryOption item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : item.code());
+            }
+        });
+        comboBox.setOnMouseClicked(event -> {
+            if (!comboBox.isShowing()) {
+                comboBox.show();
+            }
+        });
+        comboBox.getEditor().setOnMouseClicked(event -> {
+            if (!comboBox.isShowing()) {
+                comboBox.show();
+            }
+        });
+        return comboBox;
+    }
+
+    private List<CountryOption> loadCountryOptions() {
+        try {
+            return new CountryRepository(new DatabaseManager(paths)).findAllCountries().stream()
+                    .filter(Country::briCountry)
+                    .filter(country -> !BilateralRelationService.DEFAULT_COUNTRY_A.equalsIgnoreCase(country.cameoCode()))
+                    .map(country -> new CountryOption(
+                            normalizeCountryInput(country.cameoCode()),
+                            country.nameCn(),
+                            country.region()
+                    ))
+                    .toList();
+        } catch (RuntimeException exception) {
+            return List.of();
+        }
+    }
+
+    private String extractCountryCode(ComboBox<CountryOption> comboBox) {
+        CountryOption selected = comboBox.getSelectionModel().getSelectedItem();
+        String rawText = comboBox.getEditor().getText();
+        if ((rawText == null || rawText.isBlank()) && selected != null) {
+            return selected.code();
+        }
+        return normalizeCountryInput(rawText);
+    }
+
+    private String normalizeCountryInput(String text) {
+        if (text == null) {
+            return "";
+        }
+        String trimmed = text.trim();
+        int separator = trimmed.indexOf(' ');
+        if (separator > 0) {
+            trimmed = trimmed.substring(0, separator);
+        }
+        return trimmed.toUpperCase(Locale.ROOT);
+    }
+
     private TableView<EventQueryResult> createEventTable() {
         TableView<EventQueryResult> table = new TableView<>();
         table.getStyleClass().add("event-table");
@@ -1439,6 +1531,19 @@ public class MainView {
         @Override
         public String toString() {
             return label;
+        }
+    }
+
+    private record CountryOption(String code, String nameCn, String region) {
+        String displayText() {
+            StringBuilder builder = new StringBuilder(code);
+            if (nameCn != null && !nameCn.isBlank()) {
+                builder.append(" - ").append(nameCn);
+            }
+            if (region != null && !region.isBlank()) {
+                builder.append("（").append(region).append("）");
+            }
+            return builder.toString();
         }
     }
 
