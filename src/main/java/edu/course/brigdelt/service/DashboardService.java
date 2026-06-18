@@ -41,7 +41,7 @@ public class DashboardService {
         return eventRepository.queryTopCountriesByEvents(limit <= 0 ? 8 : limit);
     }
 
-    public List<MonthlyTrendPoint> monthlyTrend() {
-        return eventRepository.queryOverallMonthlyTrend();
+    public List<MonthlyTrendPoint> dailyTrend() {
+        return eventRepository.queryOverallDailyTrend();
     }
 }

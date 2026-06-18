@@ -127,7 +127,7 @@ public class MainView {
         sectionTitle.getStyleClass().add("section-title");
 
         List<PageSpec> pages = List.of(
-                new PageSpec("首页仪表盘", "汇总事件总量、合作冲突结构、国家热度、月度趋势和总体研判。"),
+                new PageSpec("首页仪表盘", "汇总事件总量、合作冲突结构、国家热度、日度趋势和总体研判。"),
                 new PageSpec("数据导入", "导入 GDELT CSV/TSV/ZIP 文件，完成清洗、过滤、入库和批次记录。"),
                 new PageSpec("事件查询", "按日期、国家代码和事件类型检索已入库 GDELT 事件。"),
                 new PageSpec("双边关系", "分析中国与沿线国家的合作冲突结构、月度趋势和事件明细。"),
@@ -219,13 +219,13 @@ public class MainView {
         topCountryChart.setLegendVisible(false);
         topCountryChart.setAnimated(false);
 
-        CategoryAxis monthlyAxis = new CategoryAxis();
-        monthlyAxis.setTickLabelRotation(-25);
-        LineChart<String, Number> monthlyTrendChart = new LineChart<>(monthlyAxis, new NumberAxis());
-        monthlyTrendChart.setTitle("月度事件趋势");
-        monthlyTrendChart.setLegendVisible(false);
-        monthlyTrendChart.setCreateSymbols(true);
-        monthlyTrendChart.setAnimated(false);
+        CategoryAxis dailyAxis = new CategoryAxis();
+        dailyAxis.setTickLabelRotation(-25);
+        LineChart<String, Number> dailyTrendChart = new LineChart<>(dailyAxis, new NumberAxis());
+        dailyTrendChart.setTitle("日度事件趋势");
+        dailyTrendChart.setLegendVisible(false);
+        dailyTrendChart.setCreateSymbols(true);
+        dailyTrendChart.setAnimated(false);
 
         Label dashboardInsight = new Label("等待数据加载后生成总体研判。");
         dashboardInsight.getStyleClass().add("insight-text");
@@ -238,10 +238,10 @@ public class MainView {
         );
         chartRow.getStyleClass().add("chart-row");
 
-        body.getChildren().addAll(statusText, firstRow, secondRow, insightPanel, chartRow, wrapChart(monthlyTrendChart));
+        body.getChildren().addAll(statusText, firstRow, secondRow, insightPanel, chartRow, wrapChart(dailyTrendChart));
         loadDashboard(statusText, countryValue, eventValue, cooperationValue, conflictValue, importValue,
                 mentionValue, goldsteinValue, toneValue, dashboardInsight,
-                typePieChart, topCountryChart, monthlyTrendChart);
+                typePieChart, topCountryChart, dailyTrendChart);
         return wrapScrollable(body);
     }
 
@@ -249,7 +249,7 @@ public class MainView {
                                Label conflictValue, Label importValue, Label mentionValue, Label goldsteinValue,
                                Label toneValue, Label dashboardInsight, PieChart typePieChart,
                                BarChart<String, Number> topCountryChart,
-                               LineChart<String, Number> monthlyTrendChart) {
+                               LineChart<String, Number> dailyTrendChart) {
         Task<DashboardViewData> task = new Task<>() {
             @Override
             protected DashboardViewData call() {
@@ -257,7 +257,7 @@ public class MainView {
                 return new DashboardViewData(
                         service.loadSummary(),
                         service.topCountries(8),
-                        service.monthlyTrend()
+                        service.dailyTrend()
                 );
             }
         };
@@ -274,9 +274,9 @@ public class MainView {
             toneValue.setText("%.2f".formatted(summary.averageAvgTone()));
             updateTypePieChart(typePieChart, summary);
             updateTopCountryChart(topCountryChart, data.topCountries());
-            updateMonthlyTrendChart(monthlyTrendChart, data.monthlyTrend());
-            refreshChartsAfterDataLoad(typePieChart, topCountryChart, monthlyTrendChart);
-            dashboardInsight.setText(buildDashboardInsight(summary, data.topCountries(), data.monthlyTrend()));
+            updateDailyTrendChart(dailyTrendChart, data.dailyTrend());
+            refreshChartsAfterDataLoad(typePieChart, topCountryChart, dailyTrendChart);
+            dashboardInsight.setText(buildDashboardInsight(summary, data.topCountries(), data.dailyTrend()));
             statusText.setText(summary.totalEvents() == 0
                     ? "暂无事件数据。请先通过数据导入或演示数据库准备分线写入数据。"
                     : "仪表盘已加载：" + summary.totalEvents() + " 条事件，"
@@ -335,7 +335,7 @@ public class MainView {
         chart.getData().setAll(series);
     }
 
-    private void updateMonthlyTrendChart(LineChart<String, Number> chart, List<MonthlyTrendPoint> trends) {
+    private void updateDailyTrendChart(LineChart<String, Number> chart, List<MonthlyTrendPoint> trends) {
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         for (MonthlyTrendPoint point : trends) {
             series.getData().add(new XYChart.Data<>(point.month(), point.totalEvents()));
@@ -386,18 +386,18 @@ public class MainView {
     }
 
     private String buildDashboardInsight(DashboardSummary summary, List<CountryEventStat> topCountries,
-                                         List<MonthlyTrendPoint> monthlyTrend) {
+                                         List<MonthlyTrendPoint> dailyTrend) {
         if (summary.totalEvents() == 0) {
-            return "当前数据库尚无事件记录。完成真实 GDELT 数据导入后，首页将自动汇总事件结构、国家热度和月度趋势。";
+            return "当前数据库尚无事件记录。完成真实 GDELT 数据导入后，首页将自动汇总事件结构、国家热度和日度趋势。";
         }
         String leadingCountry = topCountries.isEmpty() ? "暂无" : topCountries.get(0).countryCode();
-        String latestMonth = monthlyTrend.isEmpty() ? "暂无月份" : monthlyTrend.get(monthlyTrend.size() - 1).month();
+        String latestDay = dailyTrend.isEmpty() ? "暂无日期" : dailyTrend.get(dailyTrend.size() - 1).month();
         double cooperationRatio = summary.totalEvents() == 0 ? 0 : (double) summary.cooperationEvents() / summary.totalEvents();
         double conflictRatio = summary.totalEvents() == 0 ? 0 : (double) summary.conflictEvents() / summary.totalEvents();
         return "当前样本覆盖 " + summary.countryCount() + " 个配置国家，事件热度最高国家为 " + leadingCountry
                 + "。合作事件占比 " + formatPercent(cooperationRatio)
                 + "，冲突事件占比 " + formatPercent(conflictRatio)
-                + "，最新趋势月份为 " + latestMonth
+                + "，最新趋势日期为 " + latestDay
                 + "。平均 Goldstein 与 AvgTone 可用于解释总体关系强度和媒体语调。";
     }
 
@@ -1417,7 +1417,7 @@ public class MainView {
             case "双边关系" -> new String[]{
                     "默认以 CHN 为国家 A，输入沿线国家代码进行分析。",
                     "展示总事件数、合作/冲突占比、Goldstein、AvgTone 和媒体关注度。",
-                    "提供月度趋势与双边事件明细，支持答辩现场讲解。"
+                    "提供月度趋势与双边事件明细，支持 PPT 中解释双边关系变化。"
             };
             case "合作态势分析" -> new String[]{
                     "按国家聚合合作事件、冲突事件、媒体关注度和关系强度。",
@@ -1467,7 +1467,7 @@ public class MainView {
     private record DashboardViewData(
             DashboardSummary summary,
             List<CountryEventStat> topCountries,
-            List<MonthlyTrendPoint> monthlyTrend
+            List<MonthlyTrendPoint> dailyTrend
     ) {
     }
 }

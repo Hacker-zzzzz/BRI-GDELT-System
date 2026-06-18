@@ -352,6 +352,42 @@ public class GdeltEventRepository {
         }
     }
 
+    public List<MonthlyTrendPoint> queryOverallDailyTrend() {
+        String sql = """
+                SELECT
+                    substr(source_file, 1, 4) || '-' || substr(source_file, 5, 2) || '-' || substr(source_file, 7, 2) AS day,
+                    COUNT(*) AS total_events,
+                    SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    AVG(goldstein_scale) AS average_goldstein,
+                    AVG(avg_tone) AS average_avg_tone
+                FROM gdelt_events
+                WHERE source_file IS NOT NULL
+                  AND length(source_file) >= 8
+                  AND substr(source_file, 1, 8) GLOB '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]'
+                GROUP BY substr(source_file, 1, 8)
+                ORDER BY day
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<MonthlyTrendPoint> results = new ArrayList<>();
+            while (resultSet.next()) {
+                results.add(new MonthlyTrendPoint(
+                        resultSet.getString("day"),
+                        resultSet.getInt("total_events"),
+                        resultSet.getInt("cooperation_events"),
+                        resultSet.getInt("conflict_events"),
+                        resultSet.getDouble("average_goldstein"),
+                        resultSet.getDouble("average_avg_tone")
+                ));
+            }
+            return results;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("整体日度趋势查询失败。", exception);
+        }
+    }
+
     public List<CooperationScore> queryCooperationScores(int limit) {
         String sql = """
                 WITH country_events AS (
