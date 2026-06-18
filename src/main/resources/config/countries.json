@@ -41,6 +41,16 @@
       "code": "OCEANIA",
       "nameCn": "大洋洲",
       "nameEn": "Oceania"
+    },
+    {
+      "code": "LATIN_AMERICA",
+      "nameCn": "拉丁美洲",
+      "nameEn": "Latin America"
+    },
+    {
+      "code": "NORTH_AMERICA",
+      "nameCn": "北美洲",
+      "nameEn": "North America"
     }
   ],
   "countries": [
@@ -392,6 +402,1106 @@
       "region": "OCEANIA",
       "latitude": -40.9006,
       "longitude": 174.886,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "AFG",
+      "isoCode": "AF",
+      "nameCn": "阿富汗",
+      "nameEn": "Afghanistan",
+      "region": "SOUTH_ASIA",
+      "latitude": 33.9391,
+      "longitude": 67.71,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ALB",
+      "isoCode": "AL",
+      "nameCn": "阿尔巴尼亚",
+      "nameEn": "Albania",
+      "region": "EUROPE",
+      "latitude": 41.1533,
+      "longitude": 20.1683,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "DZA",
+      "isoCode": "DZ",
+      "nameCn": "阿尔及利亚",
+      "nameEn": "Algeria",
+      "region": "AFRICA",
+      "latitude": 28.0339,
+      "longitude": 1.6596,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "AGO",
+      "isoCode": "AO",
+      "nameCn": "安哥拉",
+      "nameEn": "Angola",
+      "region": "AFRICA",
+      "latitude": -11.2027,
+      "longitude": 17.8739,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ARG",
+      "isoCode": "AR",
+      "nameCn": "阿根廷",
+      "nameEn": "Argentina",
+      "region": "LATIN_AMERICA",
+      "latitude": -38.4161,
+      "longitude": -63.6167,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ARM",
+      "isoCode": "AM",
+      "nameCn": "亚美尼亚",
+      "nameEn": "Armenia",
+      "region": "EUROPE",
+      "latitude": 40.0691,
+      "longitude": 45.0382,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "AUT",
+      "isoCode": "AT",
+      "nameCn": "奥地利",
+      "nameEn": "Austria",
+      "region": "EUROPE",
+      "latitude": 47.5162,
+      "longitude": 14.5501,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "AZE",
+      "isoCode": "AZ",
+      "nameCn": "阿塞拜疆",
+      "nameEn": "Azerbaijan",
+      "region": "EUROPE",
+      "latitude": 40.1431,
+      "longitude": 47.5769,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BHR",
+      "isoCode": "BH",
+      "nameCn": "巴林",
+      "nameEn": "Bahrain",
+      "region": "MIDDLE_EAST",
+      "latitude": 25.9304,
+      "longitude": 50.6378,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BLR",
+      "isoCode": "BY",
+      "nameCn": "白俄罗斯",
+      "nameEn": "Belarus",
+      "region": "EUROPE",
+      "latitude": 53.7098,
+      "longitude": 27.9534,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BEL",
+      "isoCode": "BE",
+      "nameCn": "比利时",
+      "nameEn": "Belgium",
+      "region": "EUROPE",
+      "latitude": 50.5039,
+      "longitude": 4.4699,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BEN",
+      "isoCode": "BJ",
+      "nameCn": "贝宁",
+      "nameEn": "Benin",
+      "region": "AFRICA",
+      "latitude": 9.3077,
+      "longitude": 2.3158,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BTN",
+      "isoCode": "BT",
+      "nameCn": "不丹",
+      "nameEn": "Bhutan",
+      "region": "SOUTH_ASIA",
+      "latitude": 27.5142,
+      "longitude": 90.4336,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BOL",
+      "isoCode": "BO",
+      "nameCn": "玻利维亚",
+      "nameEn": "Bolivia",
+      "region": "LATIN_AMERICA",
+      "latitude": -16.2902,
+      "longitude": -63.5887,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BIH",
+      "isoCode": "BA",
+      "nameCn": "波黑",
+      "nameEn": "Bosnia and Herzegovina",
+      "region": "EUROPE",
+      "latitude": 43.9159,
+      "longitude": 17.6791,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BWA",
+      "isoCode": "BW",
+      "nameCn": "博茨瓦纳",
+      "nameEn": "Botswana",
+      "region": "AFRICA",
+      "latitude": -22.3285,
+      "longitude": 24.6849,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BGR",
+      "isoCode": "BG",
+      "nameCn": "保加利亚",
+      "nameEn": "Bulgaria",
+      "region": "EUROPE",
+      "latitude": 42.7339,
+      "longitude": 25.4858,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BFA",
+      "isoCode": "BF",
+      "nameCn": "布基纳法索",
+      "nameEn": "Burkina Faso",
+      "region": "AFRICA",
+      "latitude": 12.2383,
+      "longitude": -1.5616,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "BDI",
+      "isoCode": "BI",
+      "nameCn": "布隆迪",
+      "nameEn": "Burundi",
+      "region": "AFRICA",
+      "latitude": -3.3731,
+      "longitude": 29.9189,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CMR",
+      "isoCode": "CM",
+      "nameCn": "喀麦隆",
+      "nameEn": "Cameroon",
+      "region": "AFRICA",
+      "latitude": 7.3697,
+      "longitude": 12.3547,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CPV",
+      "isoCode": "CV",
+      "nameCn": "佛得角",
+      "nameEn": "Cape Verde",
+      "region": "AFRICA",
+      "latitude": 16.5388,
+      "longitude": -23.0418,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CAF",
+      "isoCode": "CF",
+      "nameCn": "中非共和国",
+      "nameEn": "Central African Republic",
+      "region": "AFRICA",
+      "latitude": 6.6111,
+      "longitude": 20.9394,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TCD",
+      "isoCode": "TD",
+      "nameCn": "乍得",
+      "nameEn": "Chad",
+      "region": "AFRICA",
+      "latitude": 15.4542,
+      "longitude": 18.7322,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CHL",
+      "isoCode": "CL",
+      "nameCn": "智利",
+      "nameEn": "Chile",
+      "region": "LATIN_AMERICA",
+      "latitude": -35.6751,
+      "longitude": -71.543,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "COL",
+      "isoCode": "CO",
+      "nameCn": "哥伦比亚",
+      "nameEn": "Colombia",
+      "region": "LATIN_AMERICA",
+      "latitude": 4.5709,
+      "longitude": -74.2973,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "COM",
+      "isoCode": "KM",
+      "nameCn": "科摩罗",
+      "nameEn": "Comoros",
+      "region": "AFRICA",
+      "latitude": -11.875,
+      "longitude": 43.8722,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "COG",
+      "isoCode": "CG",
+      "nameCn": "刚果共和国",
+      "nameEn": "Republic of the Congo",
+      "region": "AFRICA",
+      "latitude": -0.228,
+      "longitude": 15.8277,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "COD",
+      "isoCode": "CD",
+      "nameCn": "刚果民主共和国",
+      "nameEn": "Democratic Republic of the Congo",
+      "region": "AFRICA",
+      "latitude": -4.0383,
+      "longitude": 21.7587,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CRI",
+      "isoCode": "CR",
+      "nameCn": "哥斯达黎加",
+      "nameEn": "Costa Rica",
+      "region": "LATIN_AMERICA",
+      "latitude": 9.7489,
+      "longitude": -83.7534,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CIV",
+      "isoCode": "CI",
+      "nameCn": "科特迪瓦",
+      "nameEn": "Cote dIvoire",
+      "region": "AFRICA",
+      "latitude": 7.54,
+      "longitude": -5.5471,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "HRV",
+      "isoCode": "HR",
+      "nameCn": "克罗地亚",
+      "nameEn": "Croatia",
+      "region": "EUROPE",
+      "latitude": 45.1,
+      "longitude": 15.2,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CUB",
+      "isoCode": "CU",
+      "nameCn": "古巴",
+      "nameEn": "Cuba",
+      "region": "LATIN_AMERICA",
+      "latitude": 21.5218,
+      "longitude": -77.7812,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CYP",
+      "isoCode": "CY",
+      "nameCn": "塞浦路斯",
+      "nameEn": "Cyprus",
+      "region": "MIDDLE_EAST",
+      "latitude": 35.1264,
+      "longitude": 33.4299,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "CZE",
+      "isoCode": "CZ",
+      "nameCn": "捷克共和国",
+      "nameEn": "Czech Republic",
+      "region": "EUROPE",
+      "latitude": 49.8175,
+      "longitude": 15.473,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "DJI",
+      "isoCode": "DJ",
+      "nameCn": "吉布提",
+      "nameEn": "Djibouti",
+      "region": "AFRICA",
+      "latitude": 11.8251,
+      "longitude": 42.5903,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "DOM",
+      "isoCode": "DO",
+      "nameCn": "多米尼加共和国",
+      "nameEn": "Dominican Republic",
+      "region": "LATIN_AMERICA",
+      "latitude": 18.7357,
+      "longitude": -70.1627,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ECU",
+      "isoCode": "EC",
+      "nameCn": "厄瓜多尔",
+      "nameEn": "Ecuador",
+      "region": "LATIN_AMERICA",
+      "latitude": -1.8312,
+      "longitude": -78.1834,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SLV",
+      "isoCode": "SV",
+      "nameCn": "萨尔瓦多",
+      "nameEn": "El Salvador",
+      "region": "LATIN_AMERICA",
+      "latitude": 13.7942,
+      "longitude": -88.8965,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GNQ",
+      "isoCode": "GQ",
+      "nameCn": "赤道几内亚",
+      "nameEn": "Equatorial Guinea",
+      "region": "AFRICA",
+      "latitude": 1.6508,
+      "longitude": 10.2679,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ERI",
+      "isoCode": "ER",
+      "nameCn": "厄立特里亚",
+      "nameEn": "Eritrea",
+      "region": "AFRICA",
+      "latitude": 15.1794,
+      "longitude": 39.7823,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "EST",
+      "isoCode": "EE",
+      "nameCn": "爱沙尼亚",
+      "nameEn": "Estonia",
+      "region": "EUROPE",
+      "latitude": 58.5953,
+      "longitude": 25.0136,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SWZ",
+      "isoCode": "SZ",
+      "nameCn": "斯威士兰",
+      "nameEn": "Eswatini",
+      "region": "AFRICA",
+      "latitude": -26.5225,
+      "longitude": 31.4659,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "FJI",
+      "isoCode": "FJ",
+      "nameCn": "斐济",
+      "nameEn": "Fiji",
+      "region": "OCEANIA",
+      "latitude": -17.7134,
+      "longitude": 178.065,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GAB",
+      "isoCode": "GA",
+      "nameCn": "加蓬",
+      "nameEn": "Gabon",
+      "region": "AFRICA",
+      "latitude": -0.8037,
+      "longitude": 11.6094,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GMB",
+      "isoCode": "GM",
+      "nameCn": "冈比亚",
+      "nameEn": "Gambia",
+      "region": "AFRICA",
+      "latitude": 13.4432,
+      "longitude": -15.3101,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GEO",
+      "isoCode": "GE",
+      "nameCn": "格鲁吉亚",
+      "nameEn": "Georgia",
+      "region": "EUROPE",
+      "latitude": 42.3154,
+      "longitude": 43.3569,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GHA",
+      "isoCode": "GH",
+      "nameCn": "加纳",
+      "nameEn": "Ghana",
+      "region": "AFRICA",
+      "latitude": 7.9465,
+      "longitude": -1.0232,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GIN",
+      "isoCode": "GN",
+      "nameCn": "几内亚",
+      "nameEn": "Guinea",
+      "region": "AFRICA",
+      "latitude": 9.9456,
+      "longitude": -9.6966,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GNB",
+      "isoCode": "GW",
+      "nameCn": "几内亚比绍",
+      "nameEn": "Guinea-Bissau",
+      "region": "AFRICA",
+      "latitude": 11.8037,
+      "longitude": -15.1804,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "GUY",
+      "isoCode": "GY",
+      "nameCn": "圭亚那",
+      "nameEn": "Guyana",
+      "region": "LATIN_AMERICA",
+      "latitude": 4.8604,
+      "longitude": -58.9302,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "IRQ",
+      "isoCode": "IQ",
+      "nameCn": "伊拉克",
+      "nameEn": "Iraq",
+      "region": "MIDDLE_EAST",
+      "latitude": 33.2232,
+      "longitude": 43.6793,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ITA",
+      "isoCode": "IT",
+      "nameCn": "意大利",
+      "nameEn": "Italy",
+      "region": "EUROPE",
+      "latitude": 41.8719,
+      "longitude": 12.5674,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "JAM",
+      "isoCode": "JM",
+      "nameCn": "牙买加",
+      "nameEn": "Jamaica",
+      "region": "LATIN_AMERICA",
+      "latitude": 18.1096,
+      "longitude": -77.2975,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "JOR",
+      "isoCode": "JO",
+      "nameCn": "约旦",
+      "nameEn": "Jordan",
+      "region": "MIDDLE_EAST",
+      "latitude": 30.5852,
+      "longitude": 36.2384,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "KWT",
+      "isoCode": "KW",
+      "nameCn": "科威特",
+      "nameEn": "Kuwait",
+      "region": "MIDDLE_EAST",
+      "latitude": 29.3117,
+      "longitude": 47.4818,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LVA",
+      "isoCode": "LV",
+      "nameCn": "拉脱维亚",
+      "nameEn": "Latvia",
+      "region": "EUROPE",
+      "latitude": 56.8796,
+      "longitude": 24.6032,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LBN",
+      "isoCode": "LB",
+      "nameCn": "黎巴嫩",
+      "nameEn": "Lebanon",
+      "region": "MIDDLE_EAST",
+      "latitude": 33.8547,
+      "longitude": 35.8623,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LSO",
+      "isoCode": "LS",
+      "nameCn": "莱索托",
+      "nameEn": "Lesotho",
+      "region": "AFRICA",
+      "latitude": -29.61,
+      "longitude": 28.2336,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LBR",
+      "isoCode": "LR",
+      "nameCn": "利比里亚",
+      "nameEn": "Liberia",
+      "region": "AFRICA",
+      "latitude": 6.4281,
+      "longitude": -9.4295,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LBY",
+      "isoCode": "LY",
+      "nameCn": "利比亚",
+      "nameEn": "Libya",
+      "region": "AFRICA",
+      "latitude": 26.3351,
+      "longitude": 17.2283,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LTU",
+      "isoCode": "LT",
+      "nameCn": "立陶宛",
+      "nameEn": "Lithuania",
+      "region": "EUROPE",
+      "latitude": 55.1694,
+      "longitude": 23.8813,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "LUX",
+      "isoCode": "LU",
+      "nameCn": "卢森堡",
+      "nameEn": "Luxembourg",
+      "region": "EUROPE",
+      "latitude": 49.8153,
+      "longitude": 6.1296,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MDG",
+      "isoCode": "MG",
+      "nameCn": "马达加斯加",
+      "nameEn": "Madagascar",
+      "region": "AFRICA",
+      "latitude": -18.7669,
+      "longitude": 46.8691,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MWI",
+      "isoCode": "MW",
+      "nameCn": "马拉维",
+      "nameEn": "Malawi",
+      "region": "AFRICA",
+      "latitude": -13.2543,
+      "longitude": 34.3015,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MDV",
+      "isoCode": "MV",
+      "nameCn": "马尔代夫",
+      "nameEn": "Maldives",
+      "region": "SOUTH_ASIA",
+      "latitude": 3.2028,
+      "longitude": 73.2207,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MLI",
+      "isoCode": "ML",
+      "nameCn": "马里",
+      "nameEn": "Mali",
+      "region": "AFRICA",
+      "latitude": 17.5707,
+      "longitude": -3.9962,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MLT",
+      "isoCode": "MT",
+      "nameCn": "马耳他",
+      "nameEn": "Malta",
+      "region": "EUROPE",
+      "latitude": 35.9375,
+      "longitude": 14.3754,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MRT",
+      "isoCode": "MR",
+      "nameCn": "毛里塔尼亚",
+      "nameEn": "Mauritania",
+      "region": "AFRICA",
+      "latitude": 21.0079,
+      "longitude": -10.9408,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MUS",
+      "isoCode": "MU",
+      "nameCn": "毛里求斯",
+      "nameEn": "Mauritius",
+      "region": "AFRICA",
+      "latitude": -20.3484,
+      "longitude": 57.5522,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MDA",
+      "isoCode": "MD",
+      "nameCn": "摩尔多瓦",
+      "nameEn": "Moldova",
+      "region": "EUROPE",
+      "latitude": 47.4116,
+      "longitude": 28.3699,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MNG",
+      "isoCode": "MN",
+      "nameCn": "蒙古",
+      "nameEn": "Mongolia",
+      "region": "EAST_ASIA",
+      "latitude": 46.8625,
+      "longitude": 103.8467,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MNE",
+      "isoCode": "ME",
+      "nameCn": "黑山",
+      "nameEn": "Montenegro",
+      "region": "EUROPE",
+      "latitude": 42.7087,
+      "longitude": 19.3744,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MAR",
+      "isoCode": "MA",
+      "nameCn": "摩洛哥",
+      "nameEn": "Morocco",
+      "region": "AFRICA",
+      "latitude": 31.7917,
+      "longitude": -7.0926,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MOZ",
+      "isoCode": "MZ",
+      "nameCn": "莫桑比克",
+      "nameEn": "Mozambique",
+      "region": "AFRICA",
+      "latitude": -18.6657,
+      "longitude": 35.5296,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "NAM",
+      "isoCode": "NA",
+      "nameCn": "纳米比亚",
+      "nameEn": "Namibia",
+      "region": "AFRICA",
+      "latitude": -22.9576,
+      "longitude": 18.4904,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "NGA",
+      "isoCode": "NG",
+      "nameCn": "尼日利亚",
+      "nameEn": "Nigeria",
+      "region": "AFRICA",
+      "latitude": 9.082,
+      "longitude": 8.6753,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MKD",
+      "isoCode": "MK",
+      "nameCn": "北马其顿",
+      "nameEn": "North Macedonia",
+      "region": "EUROPE",
+      "latitude": 41.6086,
+      "longitude": 21.7453,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "OMN",
+      "isoCode": "OM",
+      "nameCn": "阿曼",
+      "nameEn": "Oman",
+      "region": "MIDDLE_EAST",
+      "latitude": 21.4735,
+      "longitude": 55.9754,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PSE",
+      "isoCode": "PS",
+      "nameCn": "巴勒斯坦",
+      "nameEn": "Palestine",
+      "region": "MIDDLE_EAST",
+      "latitude": 31.9522,
+      "longitude": 35.2332,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PAN",
+      "isoCode": "PA",
+      "nameCn": "巴拿马",
+      "nameEn": "Panama",
+      "region": "LATIN_AMERICA",
+      "latitude": 8.538,
+      "longitude": -80.7821,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PNG",
+      "isoCode": "PG",
+      "nameCn": "巴布亚新几内亚",
+      "nameEn": "Papua New Guinea",
+      "region": "OCEANIA",
+      "latitude": -6.315,
+      "longitude": 143.9555,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PER",
+      "isoCode": "PE",
+      "nameCn": "秘鲁",
+      "nameEn": "Peru",
+      "region": "LATIN_AMERICA",
+      "latitude": -9.19,
+      "longitude": -75.0152,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "PRT",
+      "isoCode": "PT",
+      "nameCn": "葡萄牙",
+      "nameEn": "Portugal",
+      "region": "EUROPE",
+      "latitude": 39.3999,
+      "longitude": -8.2245,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "QAT",
+      "isoCode": "QA",
+      "nameCn": "卡塔尔",
+      "nameEn": "Qatar",
+      "region": "MIDDLE_EAST",
+      "latitude": 25.3548,
+      "longitude": 51.1839,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ROU",
+      "isoCode": "RO",
+      "nameCn": "罗马尼亚",
+      "nameEn": "Romania",
+      "region": "EUROPE",
+      "latitude": 45.9432,
+      "longitude": 24.9668,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "RWA",
+      "isoCode": "RW",
+      "nameCn": "卢旺达",
+      "nameEn": "Rwanda",
+      "region": "AFRICA",
+      "latitude": -1.9403,
+      "longitude": 29.8739,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SEN",
+      "isoCode": "SN",
+      "nameCn": "塞内加尔",
+      "nameEn": "Senegal",
+      "region": "AFRICA",
+      "latitude": 14.4974,
+      "longitude": -14.4524,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SYC",
+      "isoCode": "SC",
+      "nameCn": "塞舌尔",
+      "nameEn": "Seychelles",
+      "region": "AFRICA",
+      "latitude": -4.6796,
+      "longitude": 55.492,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SLE",
+      "isoCode": "SL",
+      "nameCn": "塞拉利昂",
+      "nameEn": "Sierra Leone",
+      "region": "AFRICA",
+      "latitude": 8.4606,
+      "longitude": -11.7799,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SVK",
+      "isoCode": "SK",
+      "nameCn": "斯洛伐克",
+      "nameEn": "Slovakia",
+      "region": "EUROPE",
+      "latitude": 48.669,
+      "longitude": 19.699,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SVN",
+      "isoCode": "SI",
+      "nameCn": "斯洛文尼亚",
+      "nameEn": "Slovenia",
+      "region": "EUROPE",
+      "latitude": 46.1512,
+      "longitude": 14.9955,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SOM",
+      "isoCode": "SO",
+      "nameCn": "索马里",
+      "nameEn": "Somalia",
+      "region": "AFRICA",
+      "latitude": 5.1521,
+      "longitude": 46.1996,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SSD",
+      "isoCode": "SS",
+      "nameCn": "南苏丹",
+      "nameEn": "South Sudan",
+      "region": "AFRICA",
+      "latitude": 6.877,
+      "longitude": 31.307,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ESP",
+      "isoCode": "ES",
+      "nameCn": "西班牙",
+      "nameEn": "Spain",
+      "region": "EUROPE",
+      "latitude": 40.4637,
+      "longitude": -3.7492,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SDN",
+      "isoCode": "SD",
+      "nameCn": "苏丹",
+      "nameEn": "Sudan",
+      "region": "AFRICA",
+      "latitude": 12.8628,
+      "longitude": 30.2176,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SUR",
+      "isoCode": "SR",
+      "nameCn": "苏里南",
+      "nameEn": "Suriname",
+      "region": "LATIN_AMERICA",
+      "latitude": 3.9193,
+      "longitude": -56.0278,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TZA",
+      "isoCode": "TZ",
+      "nameCn": "坦桑尼亚",
+      "nameEn": "Tanzania",
+      "region": "AFRICA",
+      "latitude": -6.369,
+      "longitude": 34.8888,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TLS",
+      "isoCode": "TL",
+      "nameCn": "东帝汶",
+      "nameEn": "Timor-Leste",
+      "region": "SOUTHEAST_ASIA",
+      "latitude": -8.8742,
+      "longitude": 125.7275,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TGO",
+      "isoCode": "TG",
+      "nameCn": "多哥",
+      "nameEn": "Togo",
+      "region": "AFRICA",
+      "latitude": 8.6195,
+      "longitude": 0.8248,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TON",
+      "isoCode": "TO",
+      "nameCn": "汤加",
+      "nameEn": "Tonga",
+      "region": "OCEANIA",
+      "latitude": -21.179,
+      "longitude": -175.1982,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TTO",
+      "isoCode": "TT",
+      "nameCn": "特立尼达和多巴哥",
+      "nameEn": "Trinidad and Tobago",
+      "region": "LATIN_AMERICA",
+      "latitude": 10.6918,
+      "longitude": -61.2225,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "TUN",
+      "isoCode": "TN",
+      "nameCn": "突尼斯",
+      "nameEn": "Tunisia",
+      "region": "AFRICA",
+      "latitude": 33.8869,
+      "longitude": 9.5375,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "UGA",
+      "isoCode": "UG",
+      "nameCn": "乌干达",
+      "nameEn": "Uganda",
+      "region": "AFRICA",
+      "latitude": 1.3733,
+      "longitude": 32.2903,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "URY",
+      "isoCode": "UY",
+      "nameCn": "乌拉圭",
+      "nameEn": "Uruguay",
+      "region": "LATIN_AMERICA",
+      "latitude": -32.5228,
+      "longitude": -55.7658,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "VEN",
+      "isoCode": "VE",
+      "nameCn": "委内瑞拉",
+      "nameEn": "Venezuela",
+      "region": "LATIN_AMERICA",
+      "latitude": 6.4238,
+      "longitude": -66.5897,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "YEM",
+      "isoCode": "YE",
+      "nameCn": "也门",
+      "nameEn": "Yemen",
+      "region": "MIDDLE_EAST",
+      "latitude": 15.5527,
+      "longitude": 48.5164,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ZMB",
+      "isoCode": "ZM",
+      "nameCn": "赞比亚",
+      "nameEn": "Zambia",
+      "region": "AFRICA",
+      "latitude": -13.1339,
+      "longitude": 27.8493,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "ZWE",
+      "isoCode": "ZW",
+      "nameCn": "津巴布韦",
+      "nameEn": "Zimbabwe",
+      "region": "AFRICA",
+      "latitude": -19.0154,
+      "longitude": 29.1549,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "SYR",
+      "isoCode": "SY",
+      "nameCn": "叙利亚",
+      "nameEn": "Syria",
+      "region": "MIDDLE_EAST",
+      "latitude": 34.8021,
+      "longitude": 38.9968,
+      "isCoreCountry": false
+    },
+    {
+      "cameoCode": "MEX",
+      "isoCode": "MX",
+      "nameCn": "墨西哥",
+      "nameEn": "Mexico",
+      "region": "LATIN_AMERICA",
+      "latitude": 23.6345,
+      "longitude": -102.5528,
       "isCoreCountry": false
     }
   ]
