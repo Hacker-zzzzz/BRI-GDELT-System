@@ -323,20 +323,47 @@
     -fx-effect: dropshadow(gaussian, rgba(31, 45, 61, 0.05), 8, 0.2, 0, 2);
 }
 
+.map-chart-panel {
+    -fx-min-height: 560px;
+}
+
+.map-chart-panel .chart {
+    -fx-min-height: 520px;
+}
+
+.map-scatter .chart-plot-background {
+    -fx-background-color: #f8fafc;
+}
+
+.map-scatter .chart-vertical-grid-lines,
+.map-scatter .chart-horizontal-grid-lines {
+    -fx-stroke: #d8e0e8;
+    -fx-stroke-dash-array: 4 4;
+}
+
 .chart-series-line {
     -fx-stroke-width: 2px;
 }
 
-.default-color0.chart-symbol {
-    -fx-background-color: #2f8f5b, white;
+.map-scatter .default-color0.chart-symbol {
+    -fx-background-color: #17894f;
+    -fx-background-radius: 9px;
+    -fx-padding: 6px;
+    -fx-opacity: 0.9;
 }
 
-.default-color1.chart-symbol {
-    -fx-background-color: #b94a48, white;
+.map-scatter .default-color1.chart-symbol {
+    -fx-background-color: #c73737;
+    -fx-background-radius: 2px;
+    -fx-padding: 6px;
+    -fx-opacity: 0.9;
 }
 
-.default-color2.chart-symbol {
-    -fx-background-color: #607d9a, white;
+.map-scatter .default-color2.chart-symbol {
+    -fx-background-color: #3e6fa3;
+    -fx-background-radius: 1px;
+    -fx-padding: 5px;
+    -fx-opacity: 0.85;
 }
 
 .insight-panel {

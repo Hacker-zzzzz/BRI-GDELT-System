@@ -793,6 +793,9 @@ public class MainView {
         scatterChart.setTitle("事件空间分布（经度 / 纬度）");
         scatterChart.setLegendVisible(true);
         scatterChart.setAnimated(false);
+        scatterChart.getStyleClass().add("map-scatter");
+        scatterChart.setPrefHeight(520);
+        scatterChart.setMinHeight(460);
 
         Label insightText = new Label("等待点位加载后生成空间研判。");
         insightText.getStyleClass().add("insight-text");
@@ -801,8 +804,10 @@ public class MainView {
         VBox formulaPanel = createFormulaPanel("地图口径说明",
                 "本页使用 GDELT 的 ActionGeo_Lat 与 ActionGeo_Long 字段。散点代表事件发生地，颜色按合作、冲突、其他三类区分，用于展示事件空间集聚趋势。");
 
-        HBox mapRow = new HBox(14, wrapChart(scatterChart), new VBox(14, insightPanel, formulaPanel));
-        mapRow.getStyleClass().add("chart-row");
+        VBox mapPanel = wrapChart(scatterChart);
+        mapPanel.getStyleClass().add("map-chart-panel");
+        HBox insightRow = new HBox(14, insightPanel, formulaPanel);
+        insightRow.getStyleClass().add("chart-row");
 
         TableView<GeoEventPoint> table = createGeoEventTable();
         ObservableList<GeoEventPoint> items = FXCollections.observableArrayList();
@@ -832,7 +837,7 @@ public class MainView {
         thread.setDaemon(true);
         thread.start();
 
-        body.getChildren().addAll(statusText, mapRow, createSectionTitle("地理事件明细"), table);
+        body.getChildren().addAll(statusText, mapPanel, insightRow, createSectionTitle("地理事件明细"), table);
         VBox.setVgrow(table, Priority.ALWAYS);
         return wrapScrollable(body);
     }
