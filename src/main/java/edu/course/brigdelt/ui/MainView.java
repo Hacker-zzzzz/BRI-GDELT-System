@@ -43,10 +43,15 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.TextAlignment;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
@@ -962,6 +967,8 @@ public class MainView {
         chart.setAnimated(false);
         chart.setLegendVisible(true);
 
+        Canvas radarChart = createRegionRadarChart();
+
         TableView<RegionSummary> table = createRegionTable();
         ObservableList<RegionSummary> items = FXCollections.observableArrayList();
         table.setItems(items);
@@ -977,6 +984,7 @@ public class MainView {
             items.setAll(results);
             updateRegionMetrics(results, regionValue, topCooperationValue, topRiskValue, totalEventValue);
             updateRegionChart(chart, results);
+            updateRegionRadarChart(radarChart, results);
             insightText.setText(buildRegionInsight(results));
             statusText.setText(results.isEmpty()
                     ? "暂无区域汇总数据。"
@@ -991,7 +999,7 @@ public class MainView {
         thread.start();
 
         body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
-                wrapChart(chart), createSectionTitle("区域指标汇总"), table);
+                wrapChart(chart), wrapChart(radarChart), createSectionTitle("区域指标汇总"), table);
         VBox.setVgrow(table, Priority.ALWAYS);
         return wrapScrollable(body);
     }
@@ -1651,6 +1659,150 @@ public class MainView {
             risk.getData().add(new XYChart.Data<>(region.region(), region.riskIndex()));
         }
         chart.getData().setAll(cooperation, risk);
+    }
+
+    private Canvas createRegionRadarChart() {
+        Canvas canvas = new Canvas(960, 440);
+        canvas.setWidth(960);
+        canvas.setHeight(440);
+        canvas.setManaged(true);
+        updateRegionRadarChart(canvas, List.of());
+        return canvas;
+    }
+
+    private void updateRegionRadarChart(Canvas canvas, List<RegionSummary> regions) {
+        GraphicsContext graphics = canvas.getGraphicsContext2D();
+        double width = canvas.getWidth();
+        double height = canvas.getHeight();
+        graphics.clearRect(0, 0, width, height);
+        graphics.setFill(Color.web("#ffffff"));
+        graphics.fillRect(0, 0, width, height);
+
+        graphics.setTextAlign(TextAlignment.CENTER);
+        graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 18));
+        graphics.setFill(Color.web("#25364a"));
+        graphics.fillText("区域多指标雷达图", width / 2.0, 30);
+
+        if (regions == null || regions.isEmpty()) {
+            graphics.setFont(Font.font("Microsoft YaHei", 14));
+            graphics.setFill(Color.web("#6a7d90"));
+            graphics.fillText("暂无区域数据。", width / 2.0, height / 2.0);
+            return;
+        }
+
+        String[] axes = {"合作指数", "风险指数", "事件活跃度", "媒体关注度", "Avg Goldstein"};
+        double centerX = width * 0.38;
+        double centerY = height * 0.54;
+        double radius = Math.min(width * 0.25, height * 0.34);
+
+        drawRadarGrid(graphics, axes, centerX, centerY, radius);
+        drawRadarRegions(graphics, regions, axes.length, centerX, centerY, radius);
+        drawRadarLegend(graphics, regions, width * 0.68, 78);
+        drawRadarFootnote(graphics, width / 2.0, height - 20);
+    }
+
+    private void drawRadarGrid(GraphicsContext graphics, String[] axes, double centerX, double centerY, double radius) {
+        graphics.setStroke(Color.web("#d8e0e8"));
+        graphics.setLineWidth(1);
+        for (int level = 1; level <= 4; level++) {
+            double currentRadius = radius * level / 4.0;
+            double[] xPoints = new double[axes.length];
+            double[] yPoints = new double[axes.length];
+            for (int index = 0; index < axes.length; index++) {
+                double angle = radarAngle(index, axes.length);
+                xPoints[index] = centerX + Math.cos(angle) * currentRadius;
+                yPoints[index] = centerY + Math.sin(angle) * currentRadius;
+            }
+            graphics.strokePolygon(xPoints, yPoints, axes.length);
+        }
+
+        graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
+        graphics.setFill(Color.web("#455a6f"));
+        for (int index = 0; index < axes.length; index++) {
+            double angle = radarAngle(index, axes.length);
+            double axisX = centerX + Math.cos(angle) * radius;
+            double axisY = centerY + Math.sin(angle) * radius;
+            graphics.strokeLine(centerX, centerY, axisX, axisY);
+            graphics.fillText(axes[index], centerX + Math.cos(angle) * (radius + 42),
+                    centerY + Math.sin(angle) * (radius + 26));
+        }
+    }
+
+    private void drawRadarRegions(GraphicsContext graphics, List<RegionSummary> regions, int axisCount,
+                                  double centerX, double centerY, double radius) {
+        double maxEvents = Math.max(1, regions.stream().mapToInt(RegionSummary::totalEvents).max().orElse(1));
+        double maxMentions = Math.max(1, regions.stream().mapToInt(RegionSummary::totalMentions).max().orElse(1));
+        for (int regionIndex = 0; regionIndex < regions.size(); regionIndex++) {
+            RegionSummary region = regions.get(regionIndex);
+            double[] values = regionRadarValues(region, maxEvents, maxMentions);
+            double[] xPoints = new double[axisCount];
+            double[] yPoints = new double[axisCount];
+            for (int axisIndex = 0; axisIndex < axisCount; axisIndex++) {
+                double valueRadius = radius * clampPercent(values[axisIndex]) / 100.0;
+                double angle = radarAngle(axisIndex, axisCount);
+                xPoints[axisIndex] = centerX + Math.cos(angle) * valueRadius;
+                yPoints[axisIndex] = centerY + Math.sin(angle) * valueRadius;
+            }
+            Color color = radarColor(regionIndex);
+            graphics.setFill(Color.color(color.getRed(), color.getGreen(), color.getBlue(), 0.10));
+            graphics.fillPolygon(xPoints, yPoints, axisCount);
+            graphics.setStroke(color);
+            graphics.setLineWidth(2);
+            graphics.strokePolygon(xPoints, yPoints, axisCount);
+        }
+    }
+
+    private double[] regionRadarValues(RegionSummary region, double maxEvents, double maxMentions) {
+        return new double[]{
+                region.cooperationIndex(),
+                region.riskIndex(),
+                ratioToPercent(region.totalEvents(), maxEvents),
+                ratioToPercent(region.totalMentions(), maxMentions),
+                clampPercent((region.averageGoldstein() + 10.0) * 5.0)
+        };
+    }
+
+    private void drawRadarLegend(GraphicsContext graphics, List<RegionSummary> regions, double x, double y) {
+        graphics.setTextAlign(TextAlignment.LEFT);
+        graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 13));
+        graphics.setFill(Color.web("#25364a"));
+        graphics.fillText("区域图例", x, y);
+        graphics.setFont(Font.font("Microsoft YaHei", 12));
+        for (int index = 0; index < regions.size(); index++) {
+            double itemY = y + 24 + index * 24;
+            Color color = radarColor(index);
+            graphics.setFill(color);
+            graphics.fillRoundRect(x, itemY - 10, 18, 10, 4, 4);
+            graphics.setFill(Color.web("#455a6f"));
+            graphics.fillText(regions.get(index).region(), x + 28, itemY);
+        }
+    }
+
+    private void drawRadarFootnote(GraphicsContext graphics, double x, double y) {
+        graphics.setTextAlign(TextAlignment.CENTER);
+        graphics.setFont(Font.font("Microsoft YaHei", 12));
+        graphics.setFill(Color.web("#6a7d90"));
+        graphics.fillText("说明：五个维度均归一化到 0-100；风险指数为原风险评分，事件活跃度和媒体关注度按当前区域最大值折算。", x, y);
+    }
+
+    private double radarAngle(int index, int axisCount) {
+        return -Math.PI / 2.0 + index * 2.0 * Math.PI / axisCount;
+    }
+
+    private Color radarColor(int index) {
+        String[] colors = {
+                "#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#ff7f0e",
+                "#17becf", "#8c564b", "#e377c2", "#4d7c0f", "#475569"
+        };
+        return Color.web(colors[index % colors.length]);
+    }
+
+    private double ratioToPercent(double value, double max) {
+        return max <= 0 ? 0 : clampPercent(value / max * 100.0);
+    }
+
+    private double clampPercent(double value) {
+        return Math.max(0, Math.min(100, value));
     }
 
     private String formatPercent(double ratio) {
