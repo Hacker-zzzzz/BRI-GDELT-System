@@ -25,6 +25,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.concurrent.Task;
+import javafx.application.Platform;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.LineChart;
@@ -211,14 +212,20 @@ public class MainView {
         typePieChart.setTitle("事件类型结构");
         typePieChart.setLegendVisible(true);
 
-        BarChart<String, Number> topCountryChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        CategoryAxis topCountryAxis = new CategoryAxis();
+        topCountryAxis.setTickLabelRotation(0);
+        BarChart<String, Number> topCountryChart = new BarChart<>(topCountryAxis, new NumberAxis());
         topCountryChart.setTitle("国家事件量 TOP8");
         topCountryChart.setLegendVisible(false);
+        topCountryChart.setAnimated(false);
 
-        LineChart<String, Number> monthlyTrendChart = new LineChart<>(new CategoryAxis(), new NumberAxis());
+        CategoryAxis monthlyAxis = new CategoryAxis();
+        monthlyAxis.setTickLabelRotation(-25);
+        LineChart<String, Number> monthlyTrendChart = new LineChart<>(monthlyAxis, new NumberAxis());
         monthlyTrendChart.setTitle("月度事件趋势");
         monthlyTrendChart.setLegendVisible(false);
         monthlyTrendChart.setCreateSymbols(true);
+        monthlyTrendChart.setAnimated(false);
 
         Label dashboardInsight = new Label("等待数据加载后生成总体研判。");
         dashboardInsight.getStyleClass().add("insight-text");
@@ -268,6 +275,7 @@ public class MainView {
             updateTypePieChart(typePieChart, summary);
             updateTopCountryChart(topCountryChart, data.topCountries());
             updateMonthlyTrendChart(monthlyTrendChart, data.monthlyTrend());
+            refreshChartsAfterDataLoad(typePieChart, topCountryChart, monthlyTrendChart);
             dashboardInsight.setText(buildDashboardInsight(summary, data.topCountries(), data.monthlyTrend()));
             statusText.setText(summary.totalEvents() == 0
                     ? "暂无事件数据。请先通过数据导入或演示数据库准备分线写入数据。"
@@ -333,6 +341,28 @@ public class MainView {
             series.getData().add(new XYChart.Data<>(point.month(), point.totalEvents()));
         }
         chart.getData().setAll(series);
+    }
+
+    private void refreshChartsAfterDataLoad(Node... charts) {
+        Platform.runLater(() -> {
+            for (Node chart : charts) {
+                chart.applyCss();
+                chart.autosize();
+                requestNodeLayout(chart);
+            }
+            Platform.runLater(() -> {
+                for (Node chart : charts) {
+                    chart.getParent().requestLayout();
+                    requestNodeLayout(chart);
+                }
+            });
+        });
+    }
+
+    private void requestNodeLayout(Node node) {
+        if (node instanceof Parent parent) {
+            parent.requestLayout();
+        }
     }
 
     private void updateGeoScatterChart(ScatterChart<Number, Number> chart, List<GeoEventPoint> points) {
