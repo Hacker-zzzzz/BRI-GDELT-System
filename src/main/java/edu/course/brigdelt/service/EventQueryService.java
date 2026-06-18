@@ -34,7 +34,7 @@ public class EventQueryService {
 
     private EventQueryCriteria normalize(EventQueryCriteria criteria) {
         EventQueryCriteria safeCriteria = criteria == null
-                ? new EventQueryCriteria(null, null, null, null, null, null, EventQueryCriteria.DEFAULT_LIMIT)
+                ? new EventQueryCriteria(null, null, null, null, null, null, null, EventQueryCriteria.DEFAULT_LIMIT)
                 : criteria;
         LocalDate startDate = safeCriteria.startDate();
         LocalDate endDate = safeCriteria.endDate();
@@ -53,6 +53,7 @@ public class EventQueryService {
                 normalizeCode(safeCriteria.anyCountryCode()),
                 normalizeCode(safeCriteria.actor1CountryCode()),
                 normalizeCode(safeCriteria.actor2CountryCode()),
+                normalizeRegion(safeCriteria.region()),
                 safeCriteria.eventType(),
                 limit
         );
@@ -63,5 +64,12 @@ public class EventQueryService {
             return null;
         }
         return code.trim().toUpperCase();
+    }
+
+    private String normalizeRegion(String region) {
+        if (region == null || region.isBlank()) {
+            return null;
+        }
+        return region.trim().toUpperCase();
     }
 }

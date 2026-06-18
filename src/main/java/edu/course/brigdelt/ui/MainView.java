@@ -4,6 +4,7 @@ import edu.course.brigdelt.config.AppPaths;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
 import edu.course.brigdelt.domain.CooperationScore;
 import edu.course.brigdelt.domain.Country;
+import edu.course.brigdelt.domain.CountryClusterResult;
 import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
@@ -14,6 +15,7 @@ import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
+import edu.course.brigdelt.domain.RegionSummary;
 import edu.course.brigdelt.repository.CountryRepository;
 import edu.course.brigdelt.repository.DatabaseManager;
 import edu.course.brigdelt.service.AnalysisService;
@@ -41,6 +43,13 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
+import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Stop;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.SVGPath;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -66,6 +75,7 @@ import javafx.util.StringConverter;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.Locale;
 import java.util.List;
 import java.util.function.Function;
@@ -110,8 +120,79 @@ public class MainView {
         Label status = new Label("启动完成");
         status.getStyleClass().add("status-pill");
 
-        header.getChildren().addAll(titleBox, spacer, status);
+        header.getChildren().addAll(createAppIcon(), titleBox, spacer, status);
         return header;
+    }
+
+    private StackPane createAppIcon() {
+        StackPane icon = new StackPane();
+        icon.getStyleClass().add("app-icon");
+        icon.setMinSize(56, 56);
+        icon.setPrefSize(56, 56);
+        icon.setMaxSize(56, 56);
+
+        Rectangle background = new Rectangle(56, 56);
+        background.setArcWidth(16);
+        background.setArcHeight(16);
+        background.setFill(new LinearGradient(
+                0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0, Color.web("#0f766e")),
+                new Stop(0.55, Color.web("#145c74")),
+                new Stop(1, Color.web("#1f3f6f"))
+        ));
+
+        Circle globe = new Circle(28, 25, 17);
+        globe.setFill(Color.TRANSPARENT);
+        globe.setStroke(Color.web("#d9fff4", 0.75));
+        globe.setStrokeWidth(2.1);
+
+        SVGPath latitude = new SVGPath();
+        latitude.setContent("M12 25 C20 21 36 21 44 25 M12 31 C20 35 36 35 44 31");
+        latitude.setFill(Color.TRANSPARENT);
+        latitude.setStroke(Color.web("#d9fff4", 0.45));
+        latitude.setStrokeWidth(1.5);
+
+        SVGPath longitude = new SVGPath();
+        longitude.setContent("M28 8 C20 18 20 34 28 42 C36 34 36 18 28 8");
+        longitude.setFill(Color.TRANSPARENT);
+        longitude.setStroke(Color.web("#d9fff4", 0.38));
+        longitude.setStrokeWidth(1.4);
+
+        SVGPath route = new SVGPath();
+        route.setContent("M10 35 C17 30 21 25 27 27 C33 29 35 19 42 18 C46 17 49 18 52 20");
+        route.setFill(Color.TRANSPARENT);
+        route.setStroke(new LinearGradient(
+                0, 0.7, 1, 0.3, true, CycleMethod.NO_CYCLE,
+                new Stop(0, Color.web("#f7c948")),
+                new Stop(0.55, Color.web("#f59e0b")),
+                new Stop(1, Color.web("#ef4444"))
+        ));
+        route.setStrokeWidth(3.7);
+
+        SVGPath chart = new SVGPath();
+        chart.setContent("M18 42 L24 39 L30 41 L36 36 L44 40");
+        chart.setFill(Color.TRANSPARENT);
+        chart.setStroke(Color.web("#bff7ea"));
+        chart.setStrokeWidth(2.4);
+
+        StackPane nodes = new StackPane(
+                nodeDot(10, 35, 2.8, "#f7c948"),
+                nodeDot(27, 27, 2.3, "#fb7185"),
+                nodeDot(42, 18, 2.6, "#38bdf8"),
+                nodeDot(52, 20, 2.8, "#f59e0b")
+        );
+        nodes.setMouseTransparent(true);
+
+        icon.getChildren().addAll(background, globe, latitude, longitude, route, chart, nodes);
+        return icon;
+    }
+
+    private Circle nodeDot(double centerX, double centerY, double radius, String fill) {
+        Circle dot = new Circle(radius);
+        dot.setFill(Color.web(fill));
+        dot.setTranslateX(centerX - 28);
+        dot.setTranslateY(centerY - 28);
+        return dot;
     }
 
     private Parent createWorkspace() {
@@ -135,6 +216,8 @@ public class MainView {
                 new PageSpec("双边关系", "分析中国与沿线国家的合作冲突结构、月度趋势和事件明细。"),
                 new PageSpec("合作态势分析", "按国家聚合合作事件、媒体关注度和 Goldstein 指标，形成合作指数排名。"),
                 new PageSpec("风险评估", "按冲突占比、负向 Goldstein 和媒体语调形成国家风险指数。"),
+                new PageSpec("区域分析", "按子区域汇总合作、冲突、语调、关注度和风险指标，支撑区域对比展示。"),
+                new PageSpec("国家聚类", "基于合作指数、风险指数、冲突占比和语调特征进行四类 K-Means 聚类。"),
                 new PageSpec("专题地图", "基于 ActionGeo 经纬度展示事件空间分布和地理事件明细。"),
                 new PageSpec("结果导出", "生成汇总报告、合作排名 CSV 和风险排名 CSV，服务答辩材料整理。"),
                 new PageSpec("数据维护", "用于补充导入 GDELT CSV/TSV/ZIP 文件，正常答辩展示优先使用已导入数据库和分析页面。")
@@ -173,6 +256,8 @@ public class MainView {
             case "双边关系" -> createBilateralPage();
             case "合作态势分析" -> createCooperationAnalysisPage();
             case "风险评估" -> createRiskAssessmentPage();
+            case "区域分析" -> createRegionAnalysisPage();
+            case "国家聚类" -> createClusterAnalysisPage();
             case "专题地图" -> createMapPage();
             case "结果导出" -> createExportPage();
             default -> createPlaceholderPage(page);
@@ -429,6 +514,37 @@ public class MainView {
                 + "，等级为" + top.riskLevel()
                 + "。当前列表中高风险及以上国家 " + highRiskCountries
                 + " 个，可作为后续重点解释和事件溯源对象。";
+    }
+
+    private String buildRegionInsight(List<RegionSummary> regions) {
+        if (regions.isEmpty()) {
+            return "暂无区域汇总结果。国家配置同步后，可按子区域比较合作、冲突、语调和风险差异。";
+        }
+        RegionSummary cooperationTop = regions.stream()
+                .max(Comparator.comparingDouble(RegionSummary::cooperationIndex))
+                .orElse(regions.get(0));
+        RegionSummary riskTop = regions.stream()
+                .max(Comparator.comparingDouble(RegionSummary::riskIndex))
+                .orElse(regions.get(0));
+        return "合作指数最高区域为 " + cooperationTop.region()
+                + "，风险指数最高区域为 " + riskTop.region()
+                + "。区域对比覆盖 " + regions.size()
+                + " 个子区域，可用于说明一带一路不同区域的合作活跃度和风险差异。";
+    }
+
+    private String buildClusterInsight(List<CountryClusterResult> results) {
+        if (results.isEmpty()) {
+            return "暂无聚类结果。导入真实数据并同步国家配置后，可将国家分为四类合作/风险群组。";
+        }
+        long deep = results.stream().filter(result -> "深度合作伙伴".equals(result.clusterLabel())).count();
+        long stable = results.stream().filter(result -> "稳定合作".equals(result.clusterLabel())).count();
+        long risky = results.stream().filter(result -> "存在风险".equals(result.clusterLabel())).count();
+        long tense = results.stream().filter(result -> "高度紧张".equals(result.clusterLabel())).count();
+        return "聚类结果显示：深度合作伙伴 " + deep
+                + " 个，稳定合作 " + stable
+                + " 个，存在风险 " + risky
+                + " 个，高度紧张 " + tense
+                + " 个。该结果可作为国家分层管理和风险预警的答辩亮点。";
     }
 
     private String buildMapInsight(List<GeoEventPoint> points) {
@@ -811,8 +927,123 @@ public class MainView {
         return wrapScrollable(body);
     }
 
+    private Parent createRegionAnalysisPage() {
+        VBox body = createPageBase("一带一路子区域对比分析", "按国家配置中的子区域聚合事件量、合作、冲突、媒体语调和风险指标。");
+
+        Label statusText = new Label("正在加载区域汇总...");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        HBox metricRow = new HBox(14);
+        metricRow.getStyleClass().add("summary-row");
+        Label regionValue = metricValue("0");
+        Label topCooperationValue = metricValue("-");
+        Label topRiskValue = metricValue("-");
+        Label totalEventValue = metricValue("0");
+        metricRow.getChildren().addAll(
+                createMetricCard("覆盖区域", regionValue, "配置中包含的子区域数", "neutral-card"),
+                createMetricCard("合作最高区域", topCooperationValue, "合作指数最高", "positive-card"),
+                createMetricCard("风险最高区域", topRiskValue, "风险指数最高", "negative-card"),
+                createMetricCard("区域参与事件", totalEventValue, "按国家参与口径汇总", "neutral-card")
+        );
+
+        Label insightText = new Label("等待区域数据加载后生成研判。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("区域态势研判", insightText);
+        VBox formulaPanel = createFormulaPanel("区域对比口径",
+                "区域汇总按配置国家参与事件聚合。合作/风险指数采用比例、均值和区域规模归一化后的 0-100 相对评分，原始事件量保留在表格中用于解释。");
+
+        CategoryAxis axis = new CategoryAxis();
+        NumberAxis scoreAxis = new NumberAxis(0, 100, 10);
+        scoreAxis.setLabel("归一化指数");
+        BarChart<String, Number> chart = new BarChart<>(axis, scoreAxis);
+        chart.setTitle("区域合作/风险指数对比");
+        chart.setAnimated(false);
+        chart.setLegendVisible(true);
+
+        TableView<RegionSummary> table = createRegionTable();
+        ObservableList<RegionSummary> items = FXCollections.observableArrayList();
+        table.setItems(items);
+
+        Task<List<RegionSummary>> task = new Task<>() {
+            @Override
+            protected List<RegionSummary> call() {
+                return new AnalysisService(new DatabaseManager(paths)).regionSummaries();
+            }
+        };
+        task.setOnSucceeded(event -> {
+            List<RegionSummary> results = task.getValue();
+            items.setAll(results);
+            updateRegionMetrics(results, regionValue, topCooperationValue, topRiskValue, totalEventValue);
+            updateRegionChart(chart, results);
+            insightText.setText(buildRegionInsight(results));
+            statusText.setText(results.isEmpty()
+                    ? "暂无区域汇总数据。"
+                    : "区域分析已加载，共显示 " + results.size() + " 个子区域。");
+        });
+        task.setOnFailed(event -> {
+            Throwable exception = task.getException();
+            statusText.setText("区域分析加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+        });
+        Thread thread = new Thread(task, "region-analysis-task");
+        thread.setDaemon(true);
+        thread.start();
+
+        body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
+                wrapChart(chart), createSectionTitle("区域指标汇总"), table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
+    private Parent createClusterAnalysisPage() {
+        VBox body = createPageBase("沿线国家 K-Means 聚类分析", "基于合作指数、风险指数、冲突占比、Goldstein、AvgTone 和事件量归一化特征，将国家分为四类。");
+
+        Label statusText = new Label("正在运行聚类分析...");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        Label insightText = new Label("等待聚类结果加载后生成解释。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("聚类结果解释", insightText);
+        VBox formulaPanel = createFormulaPanel("K-Means 口径",
+                "k=4，特征包括合作指数、风险指数、冲突占比、平均 Goldstein、平均 AvgTone 和事件量归一化。标签固定映射为深度合作伙伴、稳定合作、存在风险、高度紧张。");
+
+        TableView<CountryClusterResult> table = createClusterTable();
+        ObservableList<CountryClusterResult> items = FXCollections.observableArrayList();
+        table.setItems(items);
+
+        Task<List<CountryClusterResult>> task = new Task<>() {
+            @Override
+            protected List<CountryClusterResult> call() {
+                return new AnalysisService(new DatabaseManager(paths)).countryClusters();
+            }
+        };
+        task.setOnSucceeded(event -> {
+            List<CountryClusterResult> results = task.getValue();
+            items.setAll(results);
+            insightText.setText(buildClusterInsight(results));
+            statusText.setText(results.isEmpty()
+                    ? "暂无聚类数据。"
+                    : "聚类分析完成，共显示 " + results.size() + " 个配置国家。");
+        });
+        task.setOnFailed(event -> {
+            Throwable exception = task.getException();
+            statusText.setText("聚类分析失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+        });
+        Thread thread = new Thread(task, "cluster-analysis-task");
+        thread.setDaemon(true);
+        thread.start();
+
+        body.getChildren().addAll(statusText, new HBox(14, insightPanel, formulaPanel),
+                createSectionTitle("国家聚类结果"), table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
     private Parent createMapPage() {
-        VBox body = createPageBase("一带一路事件专题地图", "基于 GDELT ActionGeo 经纬度字段，展示沿线事件空间分布和代表性地理事件。");
+        VBox body = createPageBase("一带一路事件空间散点专题图", "基于 GDELT ActionGeo 经纬度字段，展示涉及沿线国家事件的空间分布和代表性地理事件。");
 
         Label statusText = new Label("正在加载地理事件点位...");
         statusText.getStyleClass().add("import-status");
@@ -834,8 +1065,8 @@ public class MainView {
         insightText.getStyleClass().add("insight-text");
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("空间分布研判", insightText);
-        VBox formulaPanel = createFormulaPanel("地图口径说明",
-                "本页使用 GDELT 的 ActionGeo_Lat 与 ActionGeo_Long 字段。散点代表事件发生地，颜色按合作、冲突、其他三类区分，用于展示事件空间集聚趋势。");
+        VBox formulaPanel = createFormulaPanel("散点图口径说明",
+                "本页使用 GDELT 的 ActionGeo_Lat 与 ActionGeo_Long 字段，默认显示最近有效点位。散点按合作、冲突、其他三类着色，用于展示事件空间集聚趋势，不等同于完整 GIS 底图。");
 
         VBox mapPanel = wrapChart(scatterChart);
         mapPanel.getStyleClass().add("map-chart-panel");
@@ -954,6 +1185,7 @@ public class MainView {
         actor1Field.setPromptText("Actor1");
         TextField actor2Field = new TextField();
         actor2Field.setPromptText("Actor2");
+        ComboBox<String> regionBox = createRegionComboBox();
 
         ComboBox<EventTypeOption> eventTypeBox = new ComboBox<>();
         eventTypeBox.getItems().addAll(
@@ -974,7 +1206,8 @@ public class MainView {
         addFormField(form, 0, 2, "任一国家", anyCountryField);
         addFormField(form, 1, 0, "Actor1", actor1Field);
         addFormField(form, 1, 1, "Actor2", actor2Field);
-        addFormField(form, 1, 2, "事件类型", eventTypeBox);
+        addFormField(form, 1, 2, "子区域", regionBox);
+        addFormField(form, 2, 0, "事件类型", eventTypeBox);
         form.add(new HBox(10, searchButton, clearButton), 3, 0, 1, 2);
 
         Label statusText = new Label("设置筛选条件后点击查询。默认最多显示 500 条。");
@@ -993,6 +1226,7 @@ public class MainView {
                     anyCountryField.getText(),
                     actor1Field.getText(),
                     actor2Field.getText(),
+                    selectedRegion(regionBox),
                     selectedType == null ? null : selectedType.type(),
                     EventQueryCriteria.DEFAULT_LIMIT
             );
@@ -1031,6 +1265,7 @@ public class MainView {
             anyCountryField.clear();
             actor1Field.clear();
             actor2Field.clear();
+            regionBox.getSelectionModel().selectFirst();
             eventTypeBox.getSelectionModel().selectFirst();
             tableItems.clear();
             statusText.setText("筛选条件已清空。");
@@ -1117,6 +1352,31 @@ public class MainView {
             }
         });
         return comboBox;
+    }
+
+    private ComboBox<String> createRegionComboBox() {
+        ComboBox<String> comboBox = new ComboBox<>();
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+        comboBox.getItems().add("全部区域");
+        comboBox.getItems().addAll(loadRegions());
+        comboBox.getSelectionModel().selectFirst();
+        return comboBox;
+    }
+
+    private List<String> loadRegions() {
+        try {
+            return new CountryRepository(new DatabaseManager(paths)).findRegions();
+        } catch (RuntimeException exception) {
+            return List.of();
+        }
+    }
+
+    private String selectedRegion(ComboBox<String> comboBox) {
+        String value = comboBox.getSelectionModel().getSelectedItem();
+        if (value == null || value.isBlank() || "全部区域".equals(value)) {
+            return null;
+        }
+        return value;
     }
 
     private List<CountryOption> loadCountryOptions() {
@@ -1232,6 +1492,43 @@ public class MainView {
         return table;
     }
 
+    private TableView<RegionSummary> createRegionTable() {
+        TableView<RegionSummary> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无区域汇总数据。"));
+        table.getColumns().add(valueColumn("区域", 130, RegionSummary::region));
+        table.getColumns().add(valueColumn("国家数", 80, RegionSummary::countryCount));
+        table.getColumns().add(valueColumn("参与事件", 100, RegionSummary::totalEvents));
+        table.getColumns().add(valueColumn("合作", 90, RegionSummary::cooperationEvents));
+        table.getColumns().add(valueColumn("冲突", 90, RegionSummary::conflictEvents));
+        table.getColumns().add(valueColumn("Avg Goldstein", 120, summary -> "%.2f".formatted(summary.averageGoldstein())));
+        table.getColumns().add(valueColumn("Avg Tone", 110, summary -> "%.2f".formatted(summary.averageAvgTone())));
+        table.getColumns().add(valueColumn("Mentions", 100, RegionSummary::totalMentions));
+        table.getColumns().add(valueColumn("合作指数", 100, summary -> "%.1f".formatted(summary.cooperationIndex())));
+        table.getColumns().add(valueColumn("风险指数", 100, summary -> "%.1f".formatted(summary.riskIndex())));
+        table.setMinHeight(320);
+        return table;
+    }
+
+    private TableView<CountryClusterResult> createClusterTable() {
+        TableView<CountryClusterResult> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无聚类结果。"));
+        table.getColumns().add(valueColumn("国家", 90, CountryClusterResult::countryCode));
+        table.getColumns().add(valueColumn("名称", 110, CountryClusterResult::countryName));
+        table.getColumns().add(valueColumn("区域", 120, CountryClusterResult::region));
+        table.getColumns().add(valueColumn("事件量", 90, CountryClusterResult::totalEvents));
+        table.getColumns().add(valueColumn("合作指数", 100, result -> "%.1f".formatted(result.cooperationIndex())));
+        table.getColumns().add(valueColumn("风险指数", 100, result -> "%.1f".formatted(result.riskIndex())));
+        table.getColumns().add(valueColumn("冲突占比", 100, result -> formatPercent(result.conflictRatio())));
+        table.getColumns().add(valueColumn("聚类类别", 130, CountryClusterResult::clusterLabel));
+        table.getColumns().add(valueColumn("解释", 260, CountryClusterResult::explanation));
+        table.setMinHeight(420);
+        return table;
+    }
+
     private TableView<GeoEventPoint> createGeoEventTable() {
         TableView<GeoEventPoint> table = new TableView<>();
         table.getStyleClass().add("event-table");
@@ -1327,6 +1624,33 @@ public class MainView {
         topCountry.setText(top.countryCode());
         topIndex.setText("%.1f".formatted(top.riskIndex()));
         highRisk.setText(String.valueOf(highRiskCountries));
+    }
+
+    private void updateRegionMetrics(List<RegionSummary> regions, Label regionCount, Label topCooperation,
+                                     Label topRisk, Label totalEvents) {
+        regionCount.setText(String.valueOf(regions.size()));
+        int eventSum = regions.stream().mapToInt(RegionSummary::totalEvents).sum();
+        totalEvents.setText(String.valueOf(eventSum));
+        topCooperation.setText(regions.stream()
+                .max(Comparator.comparingDouble(RegionSummary::cooperationIndex))
+                .map(RegionSummary::region)
+                .orElse("-"));
+        topRisk.setText(regions.stream()
+                .max(Comparator.comparingDouble(RegionSummary::riskIndex))
+                .map(RegionSummary::region)
+                .orElse("-"));
+    }
+
+    private void updateRegionChart(BarChart<String, Number> chart, List<RegionSummary> regions) {
+        XYChart.Series<String, Number> cooperation = new XYChart.Series<>();
+        cooperation.setName("合作指数");
+        XYChart.Series<String, Number> risk = new XYChart.Series<>();
+        risk.setName("风险指数");
+        for (RegionSummary region : regions) {
+            cooperation.getData().add(new XYChart.Data<>(region.region(), region.cooperationIndex()));
+            risk.getData().add(new XYChart.Data<>(region.region(), region.riskIndex()));
+        }
+        chart.getData().setAll(cooperation, risk);
     }
 
     private String formatPercent(double ratio) {

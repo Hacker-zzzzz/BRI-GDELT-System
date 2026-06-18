@@ -11,6 +11,7 @@ import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.GdeltEvent;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
+import edu.course.brigdelt.domain.RegionSummary;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -290,14 +291,14 @@ public class GdeltEventRepository {
 
     public List<CountryEventStat> queryTopCountriesByEvents(int limit) {
         String sql = """
-                SELECT country_code, COUNT(*) AS event_count
+                SELECT c.cameo_code AS country_code, COUNT(*) AS event_count
                 FROM (
                     SELECT actor1_country_code AS country_code FROM gdelt_events WHERE actor1_country_code IS NOT NULL
                     UNION ALL
                     SELECT actor2_country_code AS country_code FROM gdelt_events WHERE actor2_country_code IS NOT NULL
-                )
-                WHERE country_code IS NOT NULL AND TRIM(country_code) <> ''
-                GROUP BY country_code
+                ) ce
+                JOIN countries c ON c.cameo_code = ce.country_code AND c.is_bri_country = 1
+                GROUP BY c.cameo_code
                 ORDER BY event_count DESC, country_code
                 LIMIT ?
                 """;
@@ -400,7 +401,7 @@ public class GdeltEventRepository {
                     WHERE actor2_country_code IS NOT NULL AND TRIM(actor2_country_code) <> ''
                 )
                 SELECT
-                    country_code,
+                    c.cameo_code AS country_code,
                     COUNT(*) AS total_events,
                     SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
                     SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
@@ -408,7 +409,8 @@ public class GdeltEventRepository {
                     AVG(avg_tone) AS average_avg_tone,
                     SUM(num_mentions) AS total_mentions
                 FROM country_events
-                GROUP BY country_code
+                JOIN countries c ON c.cameo_code = country_events.country_code AND c.is_bri_country = 1
+                GROUP BY c.cameo_code
                 ORDER BY cooperation_events DESC, total_events DESC, country_code
                 LIMIT ?
                 """;
@@ -454,13 +456,14 @@ public class GdeltEventRepository {
                     WHERE actor2_country_code IS NOT NULL AND TRIM(actor2_country_code) <> ''
                 )
                 SELECT
-                    country_code,
+                    c.cameo_code AS country_code,
                     COUNT(*) AS total_events,
                     SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
                     AVG(goldstein_scale) AS average_goldstein,
                     AVG(avg_tone) AS average_avg_tone
                 FROM country_events
-                GROUP BY country_code
+                JOIN countries c ON c.cameo_code = country_events.country_code AND c.is_bri_country = 1
+                GROUP BY c.cameo_code
                 ORDER BY conflict_events DESC, total_events DESC, country_code
                 LIMIT ?
                 """;
@@ -531,6 +534,121 @@ public class GdeltEventRepository {
         }
     }
 
+    public List<RegionSummary> queryRegionSummaries() {
+        String sql = """
+                WITH region_country_events AS (
+                    SELECT c.region, c.cameo_code, e.event_type, e.goldstein_scale, e.avg_tone, e.num_mentions
+                    FROM countries c
+                    JOIN gdelt_events e ON e.actor1_country_code = c.cameo_code
+                    WHERE c.is_bri_country = 1
+                    UNION ALL
+                    SELECT c.region, c.cameo_code, e.event_type, e.goldstein_scale, e.avg_tone, e.num_mentions
+                    FROM countries c
+                    JOIN gdelt_events e ON e.actor2_country_code = c.cameo_code
+                    WHERE c.is_bri_country = 1
+                ),
+                region_country_counts AS (
+                    SELECT region, COUNT(*) AS country_count
+                    FROM countries
+                    WHERE is_bri_country = 1
+                    GROUP BY region
+                )
+                SELECT
+                    r.region,
+                    r.country_count,
+                    COUNT(e.cameo_code) AS total_events,
+                    SUM(CASE WHEN e.event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
+                    SUM(CASE WHEN e.event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                    AVG(e.goldstein_scale) AS average_goldstein,
+                    AVG(e.avg_tone) AS average_avg_tone,
+                    SUM(e.num_mentions) AS total_mentions
+                FROM region_country_counts r
+                LEFT JOIN region_country_events e ON e.region = r.region
+                GROUP BY r.region, r.country_count
+                ORDER BY r.region
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+            ResultSet resultSet = statement.executeQuery()) {
+            List<RegionSummary> results = new ArrayList<>();
+            while (resultSet.next()) {
+                results.add(new RegionSummary(
+                        resultSet.getString("region"),
+                        resultSet.getInt("country_count"),
+                        resultSet.getInt("total_events"),
+                        resultSet.getInt("cooperation_events"),
+                        resultSet.getInt("conflict_events"),
+                        resultSet.getDouble("average_goldstein"),
+                        resultSet.getDouble("average_avg_tone"),
+                        resultSet.getInt("total_mentions"),
+                        0,
+                        0
+                ));
+            }
+            return normalizeRegionIndexes(results);
+        } catch (SQLException exception) {
+            throw new IllegalStateException("区域汇总分析查询失败。", exception);
+        }
+    }
+
+    private List<RegionSummary> normalizeRegionIndexes(List<RegionSummary> summaries) {
+        int maxEvents = summaries.stream().mapToInt(RegionSummary::totalEvents).max().orElse(0);
+        int maxConflicts = summaries.stream().mapToInt(RegionSummary::conflictEvents).max().orElse(0);
+        int maxMentions = summaries.stream().mapToInt(RegionSummary::totalMentions).max().orElse(0);
+        List<RegionSummary> normalized = new ArrayList<>();
+        for (RegionSummary summary : summaries) {
+            normalized.add(new RegionSummary(
+                    summary.region(),
+                    summary.countryCount(),
+                    summary.totalEvents(),
+                    summary.cooperationEvents(),
+                    summary.conflictEvents(),
+                    summary.averageGoldstein(),
+                    summary.averageAvgTone(),
+                    summary.totalMentions(),
+                    regionCooperationIndex(summary, maxEvents, maxMentions),
+                    regionRiskIndex(summary, maxConflicts, maxMentions)
+            ));
+        }
+        return normalized;
+    }
+
+    private double regionCooperationIndex(RegionSummary summary, int maxEvents, int maxMentions) {
+        if (summary.totalEvents() <= 0) {
+            return 0;
+        }
+        double cooperationRatio = ratio(summary.cooperationEvents(), summary.totalEvents());
+        double positiveGoldstein = Math.max(summary.averageGoldstein(), 0) / 10.0;
+        double positiveTone = Math.max(summary.averageAvgTone(), 0) / 100.0;
+        double mentionShare = maxMentions <= 0 ? 0 : (double) summary.totalMentions() / maxMentions;
+        double eventShare = maxEvents <= 0 ? 0 : (double) summary.totalEvents() / maxEvents;
+        return clamp(100.0 * (
+                cooperationRatio * 0.45
+                        + positiveGoldstein * 0.20
+                        + positiveTone * 0.10
+                        + mentionShare * 0.15
+                        + eventShare * 0.10
+        ));
+    }
+
+    private double regionRiskIndex(RegionSummary summary, int maxConflicts, int maxMentions) {
+        if (summary.totalEvents() <= 0) {
+            return 0;
+        }
+        double conflictRatio = ratio(summary.conflictEvents(), summary.totalEvents());
+        double negativeGoldstein = Math.max(-summary.averageGoldstein(), 0) / 10.0;
+        double negativeTone = Math.max(-summary.averageAvgTone(), 0) / 100.0;
+        double mentionShare = maxMentions <= 0 ? 0 : (double) summary.totalMentions() / maxMentions;
+        double conflictShare = maxConflicts <= 0 ? 0 : (double) summary.conflictEvents() / maxConflicts;
+        return clamp(100.0 * (
+                conflictRatio * 0.45
+                        + negativeGoldstein * 0.20
+                        + negativeTone * 0.10
+                        + mentionShare * 0.10
+                        + conflictShare * 0.15
+        ));
+    }
+
     private QueryParts buildWhereClause(EventQueryCriteria criteria) {
         List<String> clauses = new ArrayList<>();
         List<Object> parameters = new ArrayList<>();
@@ -555,6 +673,18 @@ public class GdeltEventRepository {
             if (hasText(criteria.actor2CountryCode())) {
                 clauses.add("actor2_country_code = ?");
                 parameters.add(criteria.actor2CountryCode());
+            }
+            if (hasText(criteria.region())) {
+                clauses.add("""
+                        EXISTS (
+                            SELECT 1
+                            FROM countries c
+                            WHERE c.is_bri_country = 1
+                              AND c.region = ?
+                              AND (c.cameo_code = actor1_country_code OR c.cameo_code = actor2_country_code)
+                        )
+                        """);
+                parameters.add(criteria.region());
             }
             if (criteria.eventType() != null) {
                 clauses.add("event_type = ?");

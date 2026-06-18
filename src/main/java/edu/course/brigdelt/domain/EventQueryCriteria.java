@@ -11,6 +11,7 @@ public record EventQueryCriteria(
         String anyCountryCode,
         String actor1CountryCode,
         String actor2CountryCode,
+        String region,
         EventType eventType,
         int limit
 ) {

@@ -139,6 +139,27 @@ public class CountryRepository {
         }
     }
 
+    public List<String> findRegions() {
+        String sql = """
+                SELECT region
+                FROM countries
+                WHERE is_bri_country = 1 AND region IS NOT NULL AND TRIM(region) <> ''
+                GROUP BY region
+                ORDER BY region
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            List<String> regions = new ArrayList<>();
+            while (resultSet.next()) {
+                regions.add(resultSet.getString("region"));
+            }
+            return regions;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("区域列表查询失败。", exception);
+        }
+    }
+
     private Double nullableDouble(ResultSet resultSet, String columnName) throws SQLException {
         double value = resultSet.getDouble(columnName);
         return resultSet.wasNull() ? null : value;
