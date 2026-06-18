@@ -68,5 +68,5 @@ mvn org.openjfx:javafx-maven-plugin:0.0.8:run
 - 不要把 GDELT 原始 zip 文件提交到 GitHub。
 - 运行程序前先确认当前目录是项目根目录。
 - 正在下载数据时，不要删除或移动 `D:\Temp\BRI-GDELT-System\input`。
-- 大数据导入耗时较长，课堂演示优先使用已导入数据库。
+- 大数据导入耗时较长，PPT 截图和数据结论优先使用已导入数据库。
 - 答辩 PPT 中不需要写现场操作步骤，重点说明系统设计、数据结果和分析结论。

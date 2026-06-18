@@ -7,10 +7,10 @@
 ```text
 D:\Temp\BRI-GDELT-System
 ├─ input\          # 用户放入的原始 GDELT 文件，可为 .CSV/.tsv/.zip
-├─ sample\         # 答辩演示用小样例数据
+├─ sample\         # 小规模样例数据
 ├─ database\       # SQLite 数据库文件
 ├─ exports\        # CSV/Excel 导出结果
-├─ reports\        # HTML/PDF 分析报告
+├─ reports\        # TXT 分析报告
 ├─ logs\           # 导入、查询、异常日志
 └─ cache\          # 临时缓存文件，可安全清理
 ```
@@ -20,16 +20,16 @@ D:\Temp\BRI-GDELT-System
 ```text
 database\bri_gdelt.db
 sample\YYYYMMDD.export.CSV.zip
-exports\cooperation_index_YYYYMMDD_HHmmss.csv
-exports\risk_assessment_YYYYMMDD_HHmmss.csv
-reports\country_report_{countryCode}_{year}.html
+exports\cooperation_rankings_YYYYMMDD_HHmmss.csv
+exports\risk_rankings_YYYYMMDD_HHmmss.csv
+reports\bri_gdelt_snapshot_YYYYMMDD_HHmmss.txt
 logs\application_YYYYMMDD.log
 ```
 
 ## 数据边界
 
 - `input` 保存用户手动下载的 GDELT 原始文件。
-- `sample` 保存课堂演示用的 1 到 3 天小规模样例数据。
+- `sample` 保存开发和测试用的小规模样例数据。
 - `database` 保存程序自动创建和维护的 SQLite 数据库。
 - `exports` 与 `reports` 保存用户主动导出的分析结果。
 - `logs` 只保存运行日志，不参与业务分析。
@@ -40,7 +40,7 @@ logs\application_YYYYMMDD.log
 基础国家配置保存在仓库内：
 
 ```text
-config\bri_countries.json
+src\main\resources\config\countries.json
 ```
 
 程序启动时读取该配置，初始化 `countries` 国家元数据表。后续如果需要达到任务书中的 150+ 沿线国家要求，应在该 JSON 文件中继续补齐国家记录，而不是把国家清单硬编码到 Java 类中。
@@ -69,4 +69,3 @@ ActionGeo_Long
 - `EventRootCode` 为 `04`、`05`、`06`：合作事件
 - `EventRootCode` 为 `08` 到 `14`：冲突事件
 - 其他编码：其他事件
-
