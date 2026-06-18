@@ -28,6 +28,7 @@ import edu.course.brigdelt.service.MapVisualizationService;
 import edu.course.brigdelt.service.ReportExportService;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
 import javafx.beans.property.ReadOnlyObjectWrapper;
 import javafx.concurrent.Task;
 import javafx.application.Platform;
@@ -1188,12 +1189,12 @@ public class MainView {
 
         DatePicker startDatePicker = new DatePicker();
         DatePicker endDatePicker = new DatePicker();
-        TextField anyCountryField = new TextField();
-        anyCountryField.setPromptText("如 CHN");
-        TextField actor1Field = new TextField();
-        actor1Field.setPromptText("Actor1");
-        TextField actor2Field = new TextField();
-        actor2Field.setPromptText("Actor2");
+        ComboBox<CountryOption> anyCountryField = createCountryCodeComboBox(true);
+        anyCountryField.setPromptText("代码/中文/英文");
+        ComboBox<CountryOption> actor1Field = createCountryCodeComboBox(true);
+        actor1Field.setPromptText("Actor1 代码/名称");
+        ComboBox<CountryOption> actor2Field = createCountryCodeComboBox(true);
+        actor2Field.setPromptText("Actor2 代码/名称");
         ComboBox<String> regionBox = createRegionComboBox();
 
         ComboBox<EventTypeOption> eventTypeBox = new ComboBox<>();
@@ -1209,6 +1210,10 @@ public class MainView {
         searchButton.getStyleClass().add("primary-button");
         Button clearButton = new Button("清空");
         clearButton.getStyleClass().add("secondary-button");
+        searchButton.setMinWidth(76);
+        clearButton.setMinWidth(76);
+        HBox actionButtons = new HBox(10, searchButton, clearButton);
+        actionButtons.setMinWidth(170);
 
         addFormField(form, 0, 0, "开始日期", startDatePicker);
         addFormField(form, 0, 1, "结束日期", endDatePicker);
@@ -1217,7 +1222,7 @@ public class MainView {
         addFormField(form, 1, 1, "Actor2", actor2Field);
         addFormField(form, 1, 2, "子区域", regionBox);
         addFormField(form, 2, 0, "事件类型", eventTypeBox);
-        form.add(new HBox(10, searchButton, clearButton), 3, 0, 1, 2);
+        form.add(actionButtons, 3, 0, 1, 2);
 
         Label statusText = new Label("设置筛选条件后点击查询。默认最多显示 500 条。");
         statusText.getStyleClass().add("import-status");
@@ -1238,12 +1243,18 @@ public class MainView {
 
         searchButton.setOnAction(event -> {
             EventTypeOption selectedType = eventTypeBox.getSelectionModel().getSelectedItem();
+            if (hasUnmatchedCountryInput(anyCountryField)
+                    || hasUnmatchedCountryInput(actor1Field)
+                    || hasUnmatchedCountryInput(actor2Field)) {
+                statusText.setText("未匹配国家，请输入三位国家代码或重新选择候选国家。");
+                return;
+            }
             EventQueryCriteria criteria = new EventQueryCriteria(
                     startDatePicker.getValue(),
                     endDatePicker.getValue(),
-                    anyCountryField.getText(),
-                    actor1Field.getText(),
-                    actor2Field.getText(),
+                    extractCountryCode(anyCountryField),
+                    extractCountryCode(actor1Field),
+                    extractCountryCode(actor2Field),
                     selectedRegion(regionBox),
                     selectedType == null ? null : selectedType.type(),
                     EventQueryCriteria.DEFAULT_LIMIT
@@ -1287,9 +1298,9 @@ public class MainView {
         clearButton.setOnAction(event -> {
             startDatePicker.setValue(null);
             endDatePicker.setValue(null);
-            anyCountryField.clear();
-            actor1Field.clear();
-            actor2Field.clear();
+            clearCountryComboBox(anyCountryField);
+            clearCountryComboBox(actor1Field);
+            clearCountryComboBox(actor2Field);
             regionBox.getSelectionModel().selectFirst();
             eventTypeBox.getSelectionModel().selectFirst();
             tableItems.clear();
@@ -1331,11 +1342,17 @@ public class MainView {
     }
 
     private ComboBox<CountryOption> createCountryCodeComboBox() {
+        return createCountryCodeComboBox(false);
+    }
+
+    private ComboBox<CountryOption> createCountryCodeComboBox(boolean includeChina) {
         ComboBox<CountryOption> comboBox = new ComboBox<>();
         comboBox.setEditable(true);
-        comboBox.setPromptText("可输入代码，或点击选择沿线国家");
+        comboBox.setPromptText("可输入代码、中文名或英文名");
         comboBox.setMaxWidth(Double.MAX_VALUE);
-        comboBox.setItems(FXCollections.observableArrayList(loadCountryOptions()));
+        ObservableList<CountryOption> allOptions = FXCollections.observableArrayList(loadCountryOptions(includeChina));
+        FilteredList<CountryOption> filteredOptions = new FilteredList<>(allOptions, option -> true);
+        comboBox.setItems(filteredOptions);
         comboBox.setConverter(new StringConverter<>() {
             @Override
             public String toString(CountryOption option) {
@@ -1348,10 +1365,10 @@ public class MainView {
                     return null;
                 }
                 String code = normalizeCountryInput(text);
-                return comboBox.getItems().stream()
+                return allOptions.stream()
                         .filter(option -> option.code().equals(code))
                         .findFirst()
-                        .orElse(new CountryOption(code, "", ""));
+                        .orElse(new CountryOption(code, "", "", ""));
             }
         });
         comboBox.setCellFactory(list -> new ListCell<>() {
@@ -1375,6 +1392,17 @@ public class MainView {
         });
         comboBox.getEditor().setOnMouseClicked(event -> {
             if (!comboBox.isShowing()) {
+                comboBox.show();
+            }
+        });
+        comboBox.getEditor().textProperty().addListener((observable, oldValue, newValue) -> {
+            if (comboBox.getSelectionModel().getSelectedItem() != null
+                    && comboBox.getSelectionModel().getSelectedItem().code().equals(newValue)) {
+                return;
+            }
+            String query = normalizeSearchText(newValue);
+            filteredOptions.setPredicate(option -> query.isBlank() || option.matches(query));
+            if (!query.isBlank() && !comboBox.isShowing()) {
                 comboBox.show();
             }
         });
@@ -1406,14 +1434,16 @@ public class MainView {
         return value;
     }
 
-    private List<CountryOption> loadCountryOptions() {
+    private List<CountryOption> loadCountryOptions(boolean includeChina) {
         try {
             return new CountryRepository(new DatabaseManager(paths)).findAllCountries().stream()
                     .filter(Country::briCountry)
-                    .filter(country -> !BilateralRelationService.DEFAULT_COUNTRY_A.equalsIgnoreCase(country.cameoCode()))
+                    .filter(country -> includeChina
+                            || !BilateralRelationService.DEFAULT_COUNTRY_A.equalsIgnoreCase(country.cameoCode()))
                     .map(country -> new CountryOption(
                             normalizeCountryInput(country.cameoCode()),
                             country.nameCn(),
+                            country.nameEn(),
                             country.region()
                     ))
                     .toList();
@@ -1428,7 +1458,43 @@ public class MainView {
         if ((rawText == null || rawText.isBlank()) && selected != null) {
             return selected.code();
         }
-        return normalizeCountryInput(rawText);
+        if (rawText == null || rawText.isBlank()) {
+            return "";
+        }
+        String normalizedInput = normalizeSearchText(rawText);
+        if (selected != null && selected.matches(normalizedInput)) {
+            return selected.code();
+        }
+        return comboBox.getItems().stream()
+                .filter(option -> option.exactMatches(normalizedInput))
+                .findFirst()
+                .or(() -> comboBox.getItems().stream()
+                        .filter(option -> option.matches(normalizedInput))
+                        .findFirst())
+                .map(CountryOption::code)
+                .orElse(normalizeCountryInput(rawText));
+    }
+
+    private boolean hasUnmatchedCountryInput(ComboBox<CountryOption> comboBox) {
+        String rawText = comboBox.getEditor().getText();
+        if (rawText == null || rawText.isBlank()) {
+            return false;
+        }
+        String normalizedInput = normalizeSearchText(rawText);
+        if (normalizedInput.matches("[A-Z]{3}")) {
+            return false;
+        }
+        return comboBox.getItems().stream().noneMatch(option -> option.matches(normalizedInput));
+    }
+
+    private void clearCountryComboBox(ComboBox<CountryOption> comboBox) {
+        comboBox.getSelectionModel().clearSelection();
+        comboBox.getEditor().clear();
+        if (comboBox.getItems() instanceof FilteredList<?> filteredList) {
+            @SuppressWarnings("unchecked")
+            FilteredList<CountryOption> typedList = (FilteredList<CountryOption>) filteredList;
+            typedList.setPredicate(option -> true);
+        }
     }
 
     private String normalizeCountryInput(String text) {
@@ -1441,6 +1507,13 @@ public class MainView {
             trimmed = trimmed.substring(0, separator);
         }
         return trimmed.toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeSearchText(String text) {
+        if (text == null) {
+            return "";
+        }
+        return text.trim().toUpperCase(Locale.ROOT);
     }
 
     private TableView<EventQueryResult> createEventTable() {
@@ -2037,16 +2110,43 @@ public class MainView {
         }
     }
 
-    private record CountryOption(String code, String nameCn, String region) {
+    private record CountryOption(String code, String nameCn, String nameEn, String region) {
         String displayText() {
             StringBuilder builder = new StringBuilder(code);
             if (nameCn != null && !nameCn.isBlank()) {
                 builder.append(" - ").append(nameCn);
             }
+            if (nameEn != null && !nameEn.isBlank()) {
+                builder.append(" / ").append(nameEn);
+            }
             if (region != null && !region.isBlank()) {
                 builder.append("（").append(region).append("）");
             }
             return builder.toString();
+        }
+
+        boolean matches(String query) {
+            if (query == null || query.isBlank()) {
+                return true;
+            }
+            return normalizeForMatch(code).contains(query)
+                    || normalizeForMatch(nameCn).contains(query)
+                    || normalizeForMatch(nameEn).contains(query)
+                    || normalizeForMatch(region).contains(query);
+        }
+
+        boolean exactMatches(String query) {
+            if (query == null || query.isBlank()) {
+                return false;
+            }
+            return normalizeForMatch(code).equals(query)
+                    || normalizeForMatch(nameCn).equals(query)
+                    || normalizeForMatch(nameEn).equals(query)
+                    || normalizeForMatch(displayText()).equals(query);
+        }
+
+        private String normalizeForMatch(String value) {
+            return value == null ? "" : value.toUpperCase(Locale.ROOT);
         }
     }
 
