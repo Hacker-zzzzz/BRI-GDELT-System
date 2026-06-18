@@ -54,9 +54,9 @@ logs       日志目录
 cache      缓存目录
 ```
 
-## 演示建议
+## PPT 答辩素材建议
 
-推荐按以下顺序演示：
+推荐按以下顺序准备截图和结果页：
 
 1. 首页仪表盘
 2. 事件查询
@@ -66,4 +66,4 @@ cache      缓存目录
 6. 专题地图
 7. 结果导出
 
-详细演示和提交材料说明见 `docs/demo_submission_guide.md`。
+详细 PPT 素材和提交材料说明见 `docs/demo_submission_guide.md`。
