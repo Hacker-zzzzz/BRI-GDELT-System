@@ -7,6 +7,7 @@ import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
+import edu.course.brigdelt.domain.EventSubtypeStat;
 import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.GdeltEvent;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
@@ -145,6 +146,44 @@ public class GdeltEventRepository {
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("统计 GDELT 查询结果失败。", exception);
+        }
+    }
+
+    public List<EventSubtypeStat> queryEventSubtypeStats(EventQueryCriteria criteria, EventType eventType) {
+        QueryParts queryParts = buildWhereClause(criteria);
+        List<Object> parameters = new ArrayList<>(queryParts.parameters());
+        String whereClause = queryParts.whereClause();
+        String typeClause = "event_type = ?";
+        if (whereClause.isBlank()) {
+            whereClause = "WHERE " + typeClause;
+        } else {
+            whereClause = whereClause + " AND " + typeClause;
+        }
+        parameters.add(toEventTypeText(eventType));
+
+        String sql = """
+                SELECT event_root_code, COUNT(*) AS event_count
+                FROM gdelt_events
+                %s
+                GROUP BY event_root_code
+                ORDER BY event_root_code
+                """.formatted(whereClause);
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, parameters);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<EventSubtypeStat> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(new EventSubtypeStat(
+                            resultSet.getString("event_root_code"),
+                            "",
+                            resultSet.getInt("event_count")
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("事件子类分布查询失败。", exception);
         }
     }
 

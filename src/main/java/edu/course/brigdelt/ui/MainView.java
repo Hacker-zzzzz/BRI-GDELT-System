@@ -9,6 +9,7 @@ import edu.course.brigdelt.domain.CountryEventStat;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
+import edu.course.brigdelt.domain.EventSubtypeStat;
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.ExportResult;
 import edu.course.brigdelt.domain.GeoEventPoint;
@@ -1226,6 +1227,15 @@ public class MainView {
         ObservableList<EventQueryResult> tableItems = FXCollections.observableArrayList();
         table.setItems(tableItems);
 
+        PieChart cooperationSubtypeChart = new PieChart();
+        cooperationSubtypeChart.setTitle("合作事件子类分布（04-06）");
+        cooperationSubtypeChart.setLegendVisible(true);
+        PieChart conflictSubtypeChart = new PieChart();
+        conflictSubtypeChart.setTitle("冲突事件子类分布（08-14）");
+        conflictSubtypeChart.setLegendVisible(true);
+        HBox subtypeCharts = new HBox(14, wrapChart(cooperationSubtypeChart), wrapChart(conflictSubtypeChart));
+        subtypeCharts.getStyleClass().add("chart-row");
+
         searchButton.setOnAction(event -> {
             EventTypeOption selectedType = eventTypeBox.getSelectionModel().getSelectedItem();
             EventQueryCriteria criteria = new EventQueryCriteria(
@@ -1238,21 +1248,28 @@ public class MainView {
                     selectedType == null ? null : selectedType.type(),
                     EventQueryCriteria.DEFAULT_LIMIT
             );
-            Task<List<EventQueryResult>> queryTask = new Task<>() {
+            Task<EventQueryViewData> queryTask = new Task<>() {
                 @Override
-                protected List<EventQueryResult> call() {
-                    return new EventQueryService(new DatabaseManager(paths)).search(criteria);
+                protected EventQueryViewData call() {
+                    EventQueryService service = new EventQueryService(new DatabaseManager(paths));
+                    return new EventQueryViewData(
+                            service.search(criteria),
+                            service.subtypeDistribution(criteria, EventType.COOPERATION),
+                            service.subtypeDistribution(criteria, EventType.CONFLICT)
+                    );
                 }
             };
             searchButton.setDisable(true);
             clearButton.setDisable(true);
             statusText.setText("正在查询，请稍候...");
             queryTask.setOnSucceeded(workerEvent -> {
-                List<EventQueryResult> results = queryTask.getValue();
-                tableItems.setAll(results);
-                statusText.setText(results.isEmpty()
+                EventQueryViewData data = queryTask.getValue();
+                tableItems.setAll(data.events());
+                updateSubtypePieChart(cooperationSubtypeChart, data.cooperationSubtypes());
+                updateSubtypePieChart(conflictSubtypeChart, data.conflictSubtypes());
+                statusText.setText(data.events().isEmpty()
                         ? "未查询到符合条件的事件。"
-                        : "查询完成，共显示 " + results.size() + " 条事件。");
+                        : "查询完成，共显示 " + data.events().size() + " 条事件，并已刷新合作/冲突子类分布。");
                 searchButton.setDisable(false);
                 clearButton.setDisable(false);
             });
@@ -1276,10 +1293,12 @@ public class MainView {
             regionBox.getSelectionModel().selectFirst();
             eventTypeBox.getSelectionModel().selectFirst();
             tableItems.clear();
+            updateSubtypePieChart(cooperationSubtypeChart, List.of());
+            updateSubtypePieChart(conflictSubtypeChart, List.of());
             statusText.setText("筛选条件已清空。");
         });
 
-        body.getChildren().addAll(form, statusText, table);
+        body.getChildren().addAll(form, statusText, subtypeCharts, table);
         VBox.setVgrow(table, Priority.ALWAYS);
         return wrapScrollable(body);
     }
@@ -1661,6 +1680,14 @@ public class MainView {
         chart.getData().setAll(cooperation, risk);
     }
 
+    private void updateSubtypePieChart(PieChart chart, List<EventSubtypeStat> stats) {
+        List<PieChart.Data> data = stats.stream()
+                .filter(stat -> stat.eventCount() > 0)
+                .map(stat -> new PieChart.Data(stat.displayLabel(), stat.eventCount()))
+                .toList();
+        chart.setData(FXCollections.observableArrayList(data));
+    }
+
     private Canvas createRegionRadarChart() {
         Canvas canvas = new Canvas(960, 440);
         canvas.setWidth(960);
@@ -2034,6 +2061,13 @@ public class MainView {
             DashboardSummary summary,
             List<CountryEventStat> topCountries,
             List<MonthlyTrendPoint> dailyTrend
+    ) {
+    }
+
+    private record EventQueryViewData(
+            List<EventQueryResult> events,
+            List<EventSubtypeStat> cooperationSubtypes,
+            List<EventSubtypeStat> conflictSubtypes
     ) {
     }
 }
