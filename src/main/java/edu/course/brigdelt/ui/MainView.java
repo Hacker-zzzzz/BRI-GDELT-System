@@ -2,6 +2,7 @@ package edu.course.brigdelt.ui;
 
 import edu.course.brigdelt.config.AppPaths;
 import edu.course.brigdelt.domain.BilateralRelationSummary;
+import edu.course.brigdelt.domain.CooperationHotspot;
 import edu.course.brigdelt.domain.CooperationScore;
 import edu.course.brigdelt.domain.Country;
 import edu.course.brigdelt.domain.CountryClusterResult;
@@ -843,21 +844,36 @@ public class MainView {
         ObservableList<CooperationScore> items = FXCollections.observableArrayList();
         table.setItems(items);
 
-        Task<List<CooperationScore>> task = new Task<>() {
+        BarChart<String, Number> hotspotChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        hotspotChart.setTitle("新兴合作热点 TOP10（合作指数环比增长）");
+        hotspotChart.setLegendVisible(false);
+        hotspotChart.setAnimated(false);
+        TableView<CooperationHotspot> hotspotTable = createHotspotTable();
+        ObservableList<CooperationHotspot> hotspotItems = FXCollections.observableArrayList();
+        hotspotTable.setItems(hotspotItems);
+
+        Task<CooperationAnalysisViewData> task = new Task<>() {
             @Override
-            protected List<CooperationScore> call() {
-                return new AnalysisService(new DatabaseManager(paths))
-                        .cooperationRankings(AnalysisService.DEFAULT_RANK_LIMIT);
+            protected CooperationAnalysisViewData call() {
+                AnalysisService service = new AnalysisService(new DatabaseManager(paths));
+                return new CooperationAnalysisViewData(
+                        service.cooperationRankings(AnalysisService.DEFAULT_RANK_LIMIT),
+                        service.cooperationHotspots(10)
+                );
             }
         };
         task.setOnSucceeded(event -> {
-            List<CooperationScore> results = task.getValue();
+            CooperationAnalysisViewData data = task.getValue();
+            List<CooperationScore> results = data.rankings();
             items.setAll(results);
+            hotspotItems.setAll(data.hotspots());
             updateCooperationMetrics(results, countryValue, topCountryValue, topIndexValue, totalCooperationValue);
+            updateHotspotChart(hotspotChart, data.hotspots());
             insightText.setText(buildCooperationInsight(results));
             statusText.setText(results.isEmpty()
                     ? "暂无合作态势数据。"
-                    : "合作态势排名已加载，共显示 " + results.size() + " 个国家。");
+                    : "合作态势排名已加载，共显示 " + results.size()
+                    + " 个国家；热点追踪 " + data.hotspots().size() + " 个。");
         });
         task.setOnFailed(event -> {
             Throwable exception = task.getException();
@@ -868,8 +884,10 @@ public class MainView {
         thread.start();
 
         body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
-                createSectionTitle("合作指数国家排名"), table);
+                createSectionTitle("合作指数国家排名"), table,
+                createSectionTitle("合作热点追踪 TOP10"), wrapChart(hotspotChart), hotspotTable);
         VBox.setVgrow(table, Priority.ALWAYS);
+        VBox.setVgrow(hotspotTable, Priority.ALWAYS);
         return wrapScrollable(body);
     }
 
@@ -1571,6 +1589,24 @@ public class MainView {
         return table;
     }
 
+    private TableView<CooperationHotspot> createHotspotTable() {
+        TableView<CooperationHotspot> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("数据跨度不足或暂无合作指数增长国家。"));
+        table.getColumns().add(valueColumn("国家", 80, CooperationHotspot::countryCode));
+        table.getColumns().add(valueColumn("名称", 120, CooperationHotspot::countryName));
+        table.getColumns().add(valueColumn("区域", 120, CooperationHotspot::region));
+        table.getColumns().add(valueColumn("上月", 90, CooperationHotspot::previousMonth));
+        table.getColumns().add(valueColumn("本月", 90, CooperationHotspot::currentMonth));
+        table.getColumns().add(valueColumn("上月指数", 100, hotspot -> "%.1f".formatted(hotspot.previousIndex())));
+        table.getColumns().add(valueColumn("本月指数", 100, hotspot -> "%.1f".formatted(hotspot.currentIndex())));
+        table.getColumns().add(valueColumn("环比增长", 100, hotspot -> "%.1f".formatted(hotspot.growth())));
+        table.getColumns().add(valueColumn("合作增量", 90, CooperationHotspot::cooperationEventIncrease));
+        table.setMinHeight(260);
+        return table;
+    }
+
     private TableView<RiskAssessment> createRiskTable() {
         TableView<RiskAssessment> table = new TableView<>();
         table.getStyleClass().add("event-table");
@@ -1759,6 +1795,15 @@ public class MainView {
                 .map(stat -> new PieChart.Data(stat.displayLabel(), stat.eventCount()))
                 .toList();
         chart.setData(FXCollections.observableArrayList(data));
+    }
+
+    private void updateHotspotChart(BarChart<String, Number> chart, List<CooperationHotspot> hotspots) {
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("环比增长");
+        for (CooperationHotspot hotspot : hotspots) {
+            series.getData().add(new XYChart.Data<>(hotspot.countryCode(), hotspot.growth()));
+        }
+        chart.getData().setAll(series);
     }
 
     private Canvas createRegionRadarChart() {
@@ -2154,6 +2199,12 @@ public class MainView {
             BilateralRelationSummary summary,
             List<MonthlyTrendPoint> trends,
             List<EventQueryResult> events
+    ) {
+    }
+
+    private record CooperationAnalysisViewData(
+            List<CooperationScore> rankings,
+            List<CooperationHotspot> hotspots
     ) {
     }
 

@@ -1,6 +1,7 @@
 package edu.course.brigdelt.service;
 
 import edu.course.brigdelt.domain.CooperationScore;
+import edu.course.brigdelt.domain.CooperationHotspot;
 import edu.course.brigdelt.domain.Country;
 import edu.course.brigdelt.domain.CountryClusterResult;
 import edu.course.brigdelt.domain.RiskAssessment;
@@ -33,6 +34,16 @@ public class AnalysisService {
     public List<CooperationScore> cooperationRankings(int limit) {
         return eventRepository.queryCooperationScores(effectiveLimit(limit)).stream()
                 .sorted(Comparator.comparingDouble(CooperationScore::cooperationIndex).reversed())
+                .toList();
+    }
+
+    public List<CooperationHotspot> cooperationHotspots(int limit) {
+        int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
+        return eventRepository.queryCooperationHotspots(500).stream()
+                .filter(hotspot -> hotspot.growth() > 0 || hotspot.cooperationEventIncrease() > 0)
+                .sorted(Comparator.comparingDouble(CooperationHotspot::growth).reversed()
+                        .thenComparing(Comparator.comparingInt(CooperationHotspot::cooperationEventIncrease).reversed()))
+                .limit(safeLimit)
                 .toList();
     }
 
