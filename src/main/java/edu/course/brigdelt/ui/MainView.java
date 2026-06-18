@@ -127,13 +127,13 @@ public class MainView {
 
         List<PageSpec> pages = List.of(
                 new PageSpec("首页仪表盘", "汇总事件总量、合作冲突结构、国家热度、日度趋势和总体研判。"),
-                new PageSpec("数据导入", "导入 GDELT CSV/TSV/ZIP 文件，完成清洗、过滤、入库和批次记录。"),
                 new PageSpec("事件查询", "按日期、国家代码和事件类型检索已入库 GDELT 事件。"),
                 new PageSpec("双边关系", "分析中国与沿线国家的合作冲突结构、月度趋势和事件明细。"),
                 new PageSpec("合作态势分析", "按国家聚合合作事件、媒体关注度和 Goldstein 指标，形成合作指数排名。"),
                 new PageSpec("风险评估", "按冲突占比、负向 Goldstein 和媒体语调形成国家风险指数。"),
                 new PageSpec("专题地图", "基于 ActionGeo 经纬度展示事件空间分布和地理事件明细。"),
-                new PageSpec("结果导出", "生成汇总报告、合作排名 CSV 和风险排名 CSV，服务答辩材料整理。")
+                new PageSpec("结果导出", "生成汇总报告、合作排名 CSV 和风险排名 CSV，服务答辩材料整理。"),
+                new PageSpec("数据维护", "用于补充导入 GDELT CSV/TSV/ZIP 文件，正常答辩展示优先使用已导入数据库和分析页面。")
         );
 
         ListView<PageSpec> modules = new ListView<>(FXCollections.observableArrayList(pages));
@@ -153,7 +153,7 @@ public class MainView {
         modules.getSelectionModel().selectFirst();
         VBox.setVgrow(modules, Priority.ALWAYS);
 
-        Label hint = new Label("核心链路已接入：导入、查询、双边关系、合作态势、风险评估。");
+        Label hint = new Label("核心分析链路：查询、双边关系、合作态势、风险评估、专题地图、结果导出。");
         hint.getStyleClass().add("sidebar-hint");
         hint.setWrapText(true);
 
@@ -164,7 +164,7 @@ public class MainView {
     private void showPage(PageSpec page) {
         Parent content = switch (page.title()) {
             case "首页仪表盘" -> createDashboardPage(page);
-            case "数据导入" -> createImportPage(page);
+            case "数据维护" -> createImportPage(page);
             case "事件查询" -> createEventQueryPage(page);
             case "双边关系" -> createBilateralPage();
             case "合作态势分析" -> createCooperationAnalysisPage();
@@ -444,12 +444,12 @@ public class MainView {
     }
 
     private Parent createImportPage(PageSpec page) {
-        VBox body = createPageBase(page.title(), page.description());
+        VBox body = createPageBase("GDELT 数据维护工具", page.description());
 
         VBox importBox = new VBox(14);
         importBox.getStyleClass().add("import-box");
 
-        Label fileLabel = new Label("导入文件");
+        Label fileLabel = new Label("补充导入文件");
         fileLabel.getStyleClass().add("form-label");
 
         TextField filePathField = new TextField();
@@ -1389,7 +1389,7 @@ public class MainView {
 
     private String[] componentHintsFor(String title) {
         return switch (title) {
-            case "数据导入" -> new String[]{
+            case "数据维护" -> new String[]{
                     "选择 GDELT CSV、TSV 或 ZIP 文件并启动后台导入。",
                     "显示导入进度、成功行数、跳过行数和批次状态。",
                     "展示错误样例和导入摘要，便于排查数据质量问题。"
