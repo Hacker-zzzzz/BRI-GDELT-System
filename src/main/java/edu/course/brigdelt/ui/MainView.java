@@ -2338,7 +2338,7 @@ public class MainView {
     }
 
     private static class InteractiveMapPane extends StackPane {
-        private static final double MIN_ZOOM = 0.75;
+        private static final double MIN_ZOOM = 1.0;
         private static final double MAX_ZOOM = 8.0;
 
         private final Canvas canvas = new Canvas();
@@ -2377,12 +2377,13 @@ public class MainView {
                 double oldZoom = zoom;
                 double factor = event.getDeltaY() > 0 ? 1.18 : 0.85;
                 zoom = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
-                double centerX = canvas.getWidth() / 2.0;
-                double centerY = canvas.getHeight() / 2.0;
+                double centerX = mapCenterX();
+                double centerY = mapCenterY();
                 double mapDeltaX = (event.getX() - centerX - panX) / oldZoom;
                 double mapDeltaY = (event.getY() - centerY - panY) / oldZoom;
                 panX = event.getX() - centerX - mapDeltaX * zoom;
                 panY = event.getY() - centerY - mapDeltaY * zoom;
+                constrainPan();
                 draw();
                 event.consume();
             });
@@ -2399,6 +2400,7 @@ public class MainView {
                     dragStartX = event.getX();
                     dragStartY = event.getY();
                     hoverLabel.setVisible(false);
+                    constrainPan();
                     draw();
                 }
             });
@@ -2434,6 +2436,7 @@ public class MainView {
             canvas.setWidth(width);
             canvas.setHeight(height);
             canvas.relocate(0, 0);
+            constrainPan();
             draw();
         }
 
@@ -2472,12 +2475,12 @@ public class MainView {
             graphics.clearRect(0, 0, width, height);
             drawBaseMap(graphics, width, height);
             if (showHeat) {
-                drawHeatLayer(graphics);
+                drawInsideMap(graphics, () -> drawHeatLayer(graphics));
             }
             if (showRisk) {
-                drawRiskLayer(graphics);
+                drawInsideMap(graphics, () -> drawRiskLayer(graphics));
             }
-            drawEventPoints(graphics);
+            drawInsideMap(graphics, () -> drawEventPoints(graphics));
             drawMapHud(graphics, width, height);
         }
 
@@ -2490,10 +2493,16 @@ public class MainView {
             double mapHeight = mapHeight();
 
             graphics.setFill(Color.web("#eef5f8"));
-            graphics.fillRoundRect(left, top, mapWidth, mapHeight, 8, 8);
+            graphics.fillRect(left, top, mapWidth, mapHeight);
             graphics.setStroke(Color.web("#bfd0dc"));
             graphics.setLineWidth(1.2);
             graphics.strokeRoundRect(left, top, mapWidth, mapHeight, 8, 8);
+
+            graphics.save();
+            graphics.beginPath();
+            graphics.rect(left, top, mapWidth, mapHeight);
+            graphics.clip();
+            drawLandBase(graphics);
 
             graphics.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
             graphics.setTextAlign(TextAlignment.CENTER);
@@ -2502,8 +2511,6 @@ public class MainView {
                 graphics.setStroke(lon == 0 ? Color.web("#91a6b8") : Color.web("#d6e0e8"));
                 graphics.setLineWidth(lon == 0 ? 1.2 : 0.8);
                 graphics.strokeLine(x, screenY(-90), x, screenY(90));
-                graphics.setFill(Color.web("#6a7d90"));
-                graphics.fillText(lon + "°", x, Math.min(height - 14, screenY(-90) + 18));
             }
             graphics.setTextAlign(TextAlignment.RIGHT);
             for (int lat = -60; lat <= 90; lat += 30) {
@@ -2511,12 +2518,105 @@ public class MainView {
                 graphics.setStroke(lat == 0 ? Color.web("#91a6b8") : Color.web("#d6e0e8"));
                 graphics.setLineWidth(lat == 0 ? 1.2 : 0.8);
                 graphics.strokeLine(screenX(-180), y, screenX(180), y);
-                graphics.setFill(Color.web("#6a7d90"));
-                graphics.fillText(lat + "°", Math.max(42, screenX(-180) - 8), y + 4);
             }
 
             drawRegionBox(graphics, 25, 105, -10, 55, "BRI重点区");
             drawRegionBox(graphics, 60, 150, -15, 60, "亚欧通道");
+            graphics.restore();
+
+            graphics.setStroke(Color.web("#bfd0dc"));
+            graphics.setLineWidth(1.4);
+            graphics.strokeRoundRect(left, top, mapWidth, mapHeight, 8, 8);
+            drawCoordinateLabels(graphics, width, height);
+        }
+
+        private void drawInsideMap(GraphicsContext graphics, Runnable drawAction) {
+            graphics.save();
+            graphics.beginPath();
+            graphics.rect(mapLeft(), mapTop(), mapWidth(), mapHeight());
+            graphics.clip();
+            drawAction.run();
+            graphics.restore();
+        }
+
+        private void drawCoordinateLabels(GraphicsContext graphics, double width, double height) {
+            graphics.setFill(Color.web("#6a7d90"));
+            graphics.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
+            graphics.setTextAlign(TextAlignment.CENTER);
+            double bottomLabelY = Math.min(height - 14, mapTop() + mapHeight() + 22);
+            for (int lon = -180; lon <= 180; lon += 30) {
+                double x = screenX(lon);
+                if (x < mapLeft() + 2 || x > mapLeft() + mapWidth() - 2) {
+                    continue;
+                }
+                graphics.fillText(lon + "°", x, bottomLabelY);
+            }
+            graphics.setTextAlign(TextAlignment.RIGHT);
+            double leftLabelX = Math.max(42, mapLeft() - 10);
+            for (int lat = -60; lat <= 90; lat += 30) {
+                double y = screenY(lat);
+                if (y < mapTop() + 2 || y > mapTop() + mapHeight() - 2) {
+                    continue;
+                }
+                graphics.fillText(lat + "°", leftLabelX, y + 4);
+            }
+        }
+
+        private void drawLandBase(GraphicsContext graphics) {
+            graphics.setFill(Color.web("#dfeadf", 0.95));
+            graphics.setStroke(Color.web("#b5c8b4", 0.95));
+            graphics.setLineWidth(1.1);
+
+            drawLandMass(graphics, new double[][]{
+                    {-168, 55}, {-150, 70}, {-125, 72}, {-105, 62}, {-82, 58}, {-62, 50}, {-55, 36},
+                    {-74, 18}, {-96, 15}, {-116, 26}, {-130, 45}, {-150, 50}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {-82, 12}, {-70, 10}, {-55, -5}, {-42, -20}, {-52, -48}, {-68, -55},
+                    {-78, -36}, {-82, -12}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {-52, 60}, {-42, 75}, {-25, 75}, {-20, 62}, {-34, 58}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {-10, 35}, {5, 58}, {35, 62}, {60, 55}, {46, 38}, {28, 33}, {12, 36}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {-18, 35}, {12, 36}, {35, 30}, {50, 10}, {42, -20}, {28, -35},
+                    {12, -35}, {-4, -18}, {-14, 5}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {35, 35}, {52, 55}, {88, 67}, {126, 58}, {150, 46}, {142, 20},
+                    {116, 8}, {104, -8}, {78, 8}, {62, 18}, {42, 22}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {112, -12}, {154, -12}, {150, -38}, {132, -44}, {114, -32}
+            });
+            drawLandMass(graphics, new double[][]{
+                    {-180, -64}, {-120, -68}, {-55, -63}, {12, -69}, {78, -64}, {160, -66}, {180, -64},
+                    {180, -84}, {-180, -84}
+            });
+
+            graphics.setFill(Color.web("#8aa489", 0.72));
+            graphics.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
+            graphics.setTextAlign(TextAlignment.CENTER);
+            graphics.fillText("North America", screenX(-108), screenY(48));
+            graphics.fillText("South America", screenX(-62), screenY(-22));
+            graphics.fillText("Europe", screenX(18), screenY(50));
+            graphics.fillText("Africa", screenX(20), screenY(4));
+            graphics.fillText("Asia", screenX(92), screenY(40));
+            graphics.fillText("Oceania", screenX(136), screenY(-26));
+        }
+
+        private void drawLandMass(GraphicsContext graphics, double[][] lonLatPairs) {
+            double[] xPoints = new double[lonLatPairs.length];
+            double[] yPoints = new double[lonLatPairs.length];
+            for (int index = 0; index < lonLatPairs.length; index++) {
+                xPoints[index] = screenX(lonLatPairs[index][0]);
+                yPoints[index] = screenY(lonLatPairs[index][1]);
+            }
+            graphics.fillPolygon(xPoints, yPoints, lonLatPairs.length);
+            graphics.strokePolygon(xPoints, yPoints, lonLatPairs.length);
         }
 
         private void drawRegionBox(GraphicsContext graphics, double west, double east, double south, double north,
@@ -2589,7 +2689,8 @@ public class MainView {
                 }
                 double x = screenX(point.longitude());
                 double y = screenY(point.latitude());
-                if (x < -20 || y < -20 || x > canvas.getWidth() + 20 || y > canvas.getHeight() + 20) {
+                if (x < mapLeft() - 20 || y < mapTop() - 20
+                        || x > mapLeft() + mapWidth() + 20 || y > mapTop() + mapHeight() + 20) {
                     continue;
                 }
                 if (point.eventType() == EventType.COOPERATION) {
@@ -2645,6 +2746,10 @@ public class MainView {
         }
 
         private GeoEventPoint findPoint(double mouseX, double mouseY) {
+            if (mouseX < mapLeft() || mouseY < mapTop()
+                    || mouseX > mapLeft() + mapWidth() || mouseY > mapTop() + mapHeight()) {
+                return null;
+            }
             GeoEventPoint best = null;
             double bestDistance = 10.0;
             for (GeoEventPoint point : points) {
@@ -2686,40 +2791,55 @@ public class MainView {
 
         private double screenX(double longitude) {
             double base = mapLeft() + (longitude + 180.0) / 360.0 * mapWidth();
-            return canvas.getWidth() / 2.0 + (base - canvas.getWidth() / 2.0) * zoom + panX;
+            return mapCenterX() + (base - mapCenterX()) * zoom + panX;
         }
 
         private double screenY(double latitude) {
             double base = mapTop() + (90.0 - latitude) / 180.0 * mapHeight();
-            return canvas.getHeight() / 2.0 + (base - canvas.getHeight() / 2.0) * zoom + panY;
+            return mapCenterY() + (base - mapCenterY()) * zoom + panY;
         }
 
         private double centerLongitude() {
-            double mapCenterDelta = (canvas.getWidth() / 2.0 - panX - canvas.getWidth() / 2.0) / zoom;
-            double baseX = canvas.getWidth() / 2.0 + mapCenterDelta;
+            double mapCenterDelta = (mapCenterX() - panX - mapCenterX()) / zoom;
+            double baseX = mapCenterX() + mapCenterDelta;
             return clamp((baseX - mapLeft()) / mapWidth() * 360.0 - 180.0, -180.0, 180.0);
         }
 
         private double centerLatitude() {
-            double mapCenterDelta = (canvas.getHeight() / 2.0 - panY - canvas.getHeight() / 2.0) / zoom;
-            double baseY = canvas.getHeight() / 2.0 + mapCenterDelta;
+            double mapCenterDelta = (mapCenterY() - panY - mapCenterY()) / zoom;
+            double baseY = mapCenterY() + mapCenterDelta;
             return clamp(90.0 - (baseY - mapTop()) / mapHeight() * 180.0, -90.0, 90.0);
         }
 
+        private void constrainPan() {
+            double maxX = Math.max(0, (zoom - MIN_ZOOM) * mapWidth() / 2.0);
+            double maxY = Math.max(0, (zoom - MIN_ZOOM) * mapHeight() / 2.0);
+            panX = clamp(panX, -maxX, maxX);
+            panY = clamp(panY, -maxY, maxY);
+        }
+
         private double mapLeft() {
-            return 52;
+            return 64;
         }
 
         private double mapTop() {
-            return 34;
+            return 56;
         }
 
         private double mapWidth() {
-            return Math.max(1, canvas.getWidth() - 104);
+            return Math.max(1, canvas.getWidth() - 112);
         }
 
         private double mapHeight() {
-            return Math.max(1, canvas.getHeight() - 82);
+            return Math.max(1, canvas.getHeight() - 120);
+        }
+
+        private double mapCenterX() {
+            return mapLeft() + mapWidth() / 2.0;
+        }
+
+        private double mapCenterY() {
+            return mapTop() + mapHeight() / 2.0;
         }
 
         private static double clamp(double value, double min, double max) {
