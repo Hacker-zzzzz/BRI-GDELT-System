@@ -22,6 +22,7 @@ public class DatabaseManager {
     public void initializeSchema() {
         try (Connection connection = getConnection();
              Statement statement = connection.createStatement()) {
+            statement.executeUpdate("PRAGMA journal_mode=WAL");
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS countries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,6 +115,43 @@ public class DatabaseManager {
                     CREATE INDEX IF NOT EXISTS idx_events_bilateral_date
                     ON gdelt_events(actor1_country_code, actor2_country_code, event_date)
                     """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_date_id_desc
+                    ON gdelt_events(event_date DESC, global_event_id DESC)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_type_date_id
+                    ON gdelt_events(event_type, event_date DESC, global_event_id DESC)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_actor1_date_id
+                    ON gdelt_events(actor1_country_code, event_date DESC, global_event_id DESC)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_actor2_date_id
+                    ON gdelt_events(actor2_country_code, event_date DESC, global_event_id DESC)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_bilateral_date_id
+                    ON gdelt_events(actor1_country_code, actor2_country_code, event_date DESC, global_event_id DESC)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_month_actor1
+                    ON gdelt_events(substr(event_date, 1, 7), actor1_country_code)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_month_actor2
+                    ON gdelt_events(substr(event_date, 1, 7), actor2_country_code)
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_source_day
+                    ON gdelt_events(substr(source_file, 1, 8))
+                    """);
+            statement.executeUpdate("""
+                    CREATE INDEX IF NOT EXISTS idx_events_geo_date
+                    ON gdelt_events(event_date, global_event_id DESC)
+                    WHERE action_geo_lat IS NOT NULL AND action_geo_lon IS NOT NULL
+                    """);
         } catch (SQLException exception) {
             throw new IllegalStateException("SQLite 数据库表结构初始化失败：" + paths.databaseFile(), exception);
         }
@@ -121,7 +159,9 @@ public class DatabaseManager {
 
     public Connection getConnection() throws SQLException {
         String url = "jdbc:sqlite:" + paths.databaseFile().toAbsolutePath();
-        return DriverManager.getConnection(url);
+        Connection connection = DriverManager.getConnection(url);
+        configureConnection(connection);
+        return connection;
     }
 
     public boolean tableExists(String tableName) {
@@ -160,6 +200,15 @@ public class DatabaseManager {
                 }
             }
             return false;
+        }
+    }
+
+    private void configureConnection(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("PRAGMA synchronous=NORMAL");
+            statement.executeUpdate("PRAGMA temp_store=MEMORY");
+            statement.executeUpdate("PRAGMA cache_size=-65536");
+            statement.executeUpdate("PRAGMA busy_timeout=5000");
         }
     }
 }

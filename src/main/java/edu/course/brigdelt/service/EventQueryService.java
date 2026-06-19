@@ -7,8 +7,10 @@ import edu.course.brigdelt.domain.EventSubtypeStat;
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.repository.DatabaseManager;
 import edu.course.brigdelt.repository.GdeltEventRepository;
+import edu.course.brigdelt.repository.ImportBatchRepository;
 
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +20,13 @@ import java.util.Map;
  */
 public class EventQueryService {
 
+    private static final int MAX_CACHE_ENTRIES = 64;
+    private static final Map<SearchCacheKey, List<EventQueryResult>> SEARCH_CACHE = lruCache();
+    private static final Map<CountCacheKey, Integer> COUNT_CACHE = lruCache();
+    private static final Map<SubtypeCacheKey, List<EventSubtypeStat>> SUBTYPE_CACHE = lruCache();
+
     private final GdeltEventRepository eventRepository;
+    private final ImportBatchRepository importBatchRepository;
 
     public EventQueryService() {
         this(new DatabaseManager(new AppPaths()));
@@ -26,29 +34,65 @@ public class EventQueryService {
 
     public EventQueryService(DatabaseManager databaseManager) {
         this.eventRepository = new GdeltEventRepository(databaseManager);
+        this.importBatchRepository = new ImportBatchRepository(databaseManager);
     }
 
     public List<EventQueryResult> search(EventQueryCriteria criteria) {
-        return eventRepository.queryEvents(normalize(criteria));
+        EventQueryCriteria normalized = normalize(criteria);
+        SearchCacheKey key = new SearchCacheKey(cacheVersion(), normalized);
+        synchronized (SEARCH_CACHE) {
+            List<EventQueryResult> cached = SEARCH_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        List<EventQueryResult> results = eventRepository.queryEvents(normalized);
+        synchronized (SEARCH_CACHE) {
+            SEARCH_CACHE.put(key, results);
+        }
+        return results;
     }
 
     public int count(EventQueryCriteria criteria) {
-        return eventRepository.countEvents(normalize(criteria));
+        EventQueryCriteria normalized = normalize(criteria);
+        CountCacheKey key = new CountCacheKey(cacheVersion(), normalized);
+        synchronized (COUNT_CACHE) {
+            Integer cached = COUNT_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        int count = eventRepository.countEvents(normalized);
+        synchronized (COUNT_CACHE) {
+            COUNT_CACHE.put(key, count);
+        }
+        return count;
     }
 
     public List<EventSubtypeStat> subtypeDistribution(EventQueryCriteria criteria, EventType eventType) {
         EventQueryCriteria normalized = normalize(criteria);
+        SubtypeCacheKey key = new SubtypeCacheKey(cacheVersion(), normalized, eventType);
+        synchronized (SUBTYPE_CACHE) {
+            List<EventSubtypeStat> cached = SUBTYPE_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
         Map<String, Integer> countsByCode = new LinkedHashMap<>();
         for (EventSubtypeStat stat : eventRepository.queryEventSubtypeStats(normalized, eventType)) {
             countsByCode.put(stat.rootCode(), stat.eventCount());
         }
-        return subtypeLabels(eventType).entrySet().stream()
+        List<EventSubtypeStat> results = subtypeLabels(eventType).entrySet().stream()
                 .map(entry -> new EventSubtypeStat(
                         entry.getKey(),
                         entry.getValue(),
                         countsByCode.getOrDefault(entry.getKey(), 0)
                 ))
                 .toList();
+        synchronized (SUBTYPE_CACHE) {
+            SUBTYPE_CACHE.put(key, results);
+        }
+        return results;
     }
 
     private EventQueryCriteria normalize(EventQueryCriteria criteria) {
@@ -111,5 +155,30 @@ public class EventQueryService {
             return labels;
         }
         return labels;
+    }
+
+    private CacheVersion cacheVersion() {
+        return new CacheVersion(eventRepository.countEvents(), importBatchRepository.countImportBatches());
+    }
+
+    private static <K, V> Map<K, V> lruCache() {
+        return Collections.synchronizedMap(new LinkedHashMap<>(MAX_CACHE_ENTRIES, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > MAX_CACHE_ENTRIES;
+            }
+        });
+    }
+
+    private record CacheVersion(int eventCount, int importBatchCount) {
+    }
+
+    private record SearchCacheKey(CacheVersion version, EventQueryCriteria criteria) {
+    }
+
+    private record CountCacheKey(CacheVersion version, EventQueryCriteria criteria) {
+    }
+
+    private record SubtypeCacheKey(CacheVersion version, EventQueryCriteria criteria, EventType eventType) {
     }
 }

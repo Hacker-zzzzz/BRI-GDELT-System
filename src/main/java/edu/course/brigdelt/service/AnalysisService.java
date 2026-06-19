@@ -10,36 +10,67 @@ import edu.course.brigdelt.domain.RegionSummary;
 import edu.course.brigdelt.repository.CountryRepository;
 import edu.course.brigdelt.repository.DatabaseManager;
 import edu.course.brigdelt.repository.GdeltEventRepository;
+import edu.course.brigdelt.repository.ImportBatchRepository;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class AnalysisService {
 
     public static final int DEFAULT_RANK_LIMIT = 20;
+    private static final int MAX_CACHE_ENTRIES = 32;
+    private static final Map<LimitCacheKey, List<CooperationScore>> COOPERATION_CACHE = lruCache();
+    private static final Map<LimitCacheKey, List<CooperationHotspot>> COOPERATION_HOTSPOT_CACHE = lruCache();
+    private static final Map<LimitCacheKey, List<RiskAssessment>> RISK_CACHE = lruCache();
+    private static final Map<LimitCacheKey, List<RiskHotspot>> RISK_HOTSPOT_CACHE = lruCache();
+    private static final Map<CacheVersion, List<RegionSummary>> REGION_CACHE = lruCache();
+    private static final Map<CacheVersion, List<CountryClusterResult>> CLUSTER_CACHE = lruCache();
 
     private final GdeltEventRepository eventRepository;
     private final CountryRepository countryRepository;
+    private final ImportBatchRepository importBatchRepository;
 
     public AnalysisService(DatabaseManager databaseManager) {
         this.eventRepository = new GdeltEventRepository(databaseManager);
         this.countryRepository = new CountryRepository(databaseManager);
+        this.importBatchRepository = new ImportBatchRepository(databaseManager);
     }
 
     /**
      * Ranks configured BRI countries by a classroom-friendly cooperation index.
      */
     public List<CooperationScore> cooperationRankings(int limit) {
-        return eventRepository.queryCooperationScores(effectiveLimit(limit)).stream()
+        int safeLimit = effectiveLimit(limit);
+        LimitCacheKey key = new LimitCacheKey(cacheVersion(), safeLimit);
+        synchronized (COOPERATION_CACHE) {
+            List<CooperationScore> cached = COOPERATION_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        List<CooperationScore> results = eventRepository.queryCooperationScores(safeLimit).stream()
                 .sorted(Comparator.comparingDouble(CooperationScore::cooperationIndex).reversed())
                 .toList();
+        synchronized (COOPERATION_CACHE) {
+            COOPERATION_CACHE.put(key, results);
+        }
+        return results;
     }
 
     public List<CooperationHotspot> cooperationHotspots(int limit) {
         int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
+        LimitCacheKey key = new LimitCacheKey(cacheVersion(), safeLimit);
+        synchronized (COOPERATION_HOTSPOT_CACHE) {
+            List<CooperationHotspot> cached = COOPERATION_HOTSPOT_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
         List<CooperationHotspot> sortedHotspots = eventRepository.queryCooperationHotspots(500).stream()
                 .sorted(Comparator.comparingDouble(CooperationHotspot::growth).reversed()
                         .thenComparing(Comparator.comparingInt(CooperationHotspot::cooperationEventIncrease).reversed()))
@@ -49,26 +80,52 @@ public class AnalysisService {
                 .limit(safeLimit)
                 .toList();
         if (!growingHotspots.isEmpty()) {
+            synchronized (COOPERATION_HOTSPOT_CACHE) {
+                COOPERATION_HOTSPOT_CACHE.put(key, growingHotspots);
+            }
             return growingHotspots;
         }
-        return sortedHotspots.stream()
+        List<CooperationHotspot> results = sortedHotspots.stream()
                 .sorted(Comparator.comparingDouble(CooperationHotspot::growth).reversed()
                         .thenComparing(Comparator.comparingInt(CooperationHotspot::cooperationEventIncrease).reversed()))
                 .limit(safeLimit)
                 .toList();
+        synchronized (COOPERATION_HOTSPOT_CACHE) {
+            COOPERATION_HOTSPOT_CACHE.put(key, results);
+        }
+        return results;
     }
 
     /**
      * Ranks configured BRI countries by conflict ratio, negative tone and negative Goldstein signals.
      */
     public List<RiskAssessment> riskRankings(int limit) {
-        return eventRepository.queryRiskAssessments(effectiveLimit(limit)).stream()
+        int safeLimit = effectiveLimit(limit);
+        LimitCacheKey key = new LimitCacheKey(cacheVersion(), safeLimit);
+        synchronized (RISK_CACHE) {
+            List<RiskAssessment> cached = RISK_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        List<RiskAssessment> results = eventRepository.queryRiskAssessments(safeLimit).stream()
                 .sorted(Comparator.comparingDouble(RiskAssessment::riskIndex).reversed())
                 .toList();
+        synchronized (RISK_CACHE) {
+            RISK_CACHE.put(key, results);
+        }
+        return results;
     }
 
     public List<RiskHotspot> riskHotspots(int limit) {
         int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
+        LimitCacheKey key = new LimitCacheKey(cacheVersion(), safeLimit);
+        synchronized (RISK_HOTSPOT_CACHE) {
+            List<RiskHotspot> cached = RISK_HOTSPOT_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
         List<RiskHotspot> sortedHotspots = eventRepository.queryRiskHotspots(500).stream()
                 .sorted(Comparator.comparingDouble(RiskHotspot::growth).reversed()
                         .thenComparing(Comparator.comparingInt(RiskHotspot::conflictEventIncrease).reversed()))
@@ -78,24 +135,49 @@ public class AnalysisService {
                 .limit(safeLimit)
                 .toList();
         if (!growingHotspots.isEmpty()) {
+            synchronized (RISK_HOTSPOT_CACHE) {
+                RISK_HOTSPOT_CACHE.put(key, growingHotspots);
+            }
             return growingHotspots;
         }
-        return sortedHotspots.stream()
+        List<RiskHotspot> results = sortedHotspots.stream()
                 .limit(safeLimit)
                 .toList();
+        synchronized (RISK_HOTSPOT_CACHE) {
+            RISK_HOTSPOT_CACHE.put(key, results);
+        }
+        return results;
     }
 
     /**
      * Aggregates configured BRI countries by sub-region for regional comparison and export.
      */
     public List<RegionSummary> regionSummaries() {
-        return eventRepository.queryRegionSummaries();
+        CacheVersion key = cacheVersion();
+        synchronized (REGION_CACHE) {
+            List<RegionSummary> cached = REGION_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
+        List<RegionSummary> results = eventRepository.queryRegionSummaries();
+        synchronized (REGION_CACHE) {
+            REGION_CACHE.put(key, results);
+        }
+        return results;
     }
 
     /**
      * Runs a deterministic lightweight K-Means clustering over country-level cooperation/risk features.
      */
     public List<CountryClusterResult> countryClusters() {
+        CacheVersion key = cacheVersion();
+        synchronized (CLUSTER_CACHE) {
+            List<CountryClusterResult> cached = CLUSTER_CACHE.get(key);
+            if (cached != null) {
+                return cached;
+            }
+        }
         List<CooperationScore> cooperationScores = eventRepository.queryCooperationScores(1_000);
         List<RiskAssessment> riskAssessments = eventRepository.queryRiskAssessments(1_000);
         Map<String, RiskAssessment> risksByCountry = new HashMap<>();
@@ -142,10 +224,14 @@ public class AnalysisService {
                     clusterExplanation(label)
             ));
         }
-        return results.stream()
+        List<CountryClusterResult> sortedResults = results.stream()
                 .sorted(Comparator.comparing(CountryClusterResult::clusterLabel)
                         .thenComparing(Comparator.comparingDouble(CountryClusterResult::cooperationIndex).reversed()))
                 .toList();
+        synchronized (CLUSTER_CACHE) {
+            CLUSTER_CACHE.put(key, sortedResults);
+        }
+        return sortedResults;
     }
 
     private int effectiveLimit(int limit) {
@@ -290,6 +376,25 @@ public class AnalysisService {
             case "高度紧张" -> "风险指数较高，适合作为风险预警和原因分析对象。";
             default -> "基于合作、冲突、语调和事件量的综合聚类结果。";
         };
+    }
+
+    private CacheVersion cacheVersion() {
+        return new CacheVersion(eventRepository.countEvents(), importBatchRepository.countImportBatches());
+    }
+
+    private static <K, V> Map<K, V> lruCache() {
+        return Collections.synchronizedMap(new LinkedHashMap<>(MAX_CACHE_ENTRIES, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > MAX_CACHE_ENTRIES;
+            }
+        });
+    }
+
+    private record CacheVersion(int eventCount, int importBatchCount) {
+    }
+
+    private record LimitCacheKey(CacheVersion version, int limit) {
     }
 
     private record ClusterInput(CooperationScore score, RiskAssessment risk, Country country, double[] features) {
