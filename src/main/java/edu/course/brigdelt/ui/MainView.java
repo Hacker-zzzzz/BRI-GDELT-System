@@ -2344,6 +2344,7 @@ public class MainView {
         private final Canvas canvas = new Canvas();
         private final Label hoverLabel = new Label();
         private final Consumer<GeoEventPoint> selectionHandler;
+        private final BasemapLayer basemapLayer = BasemapLayer.loadDefault();
         private final List<GeoEventPoint> points = new ArrayList<>();
         private double zoom = 1.0;
         private double panX;
@@ -2502,7 +2503,7 @@ public class MainView {
             graphics.beginPath();
             graphics.rect(left, top, mapWidth, mapHeight);
             graphics.clip();
-            drawLandBase(graphics);
+            basemapLayer.draw(graphics, this::screenX, this::screenY);
 
             graphics.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
             graphics.setTextAlign(TextAlignment.CENTER);
@@ -2560,63 +2561,6 @@ public class MainView {
                 }
                 graphics.fillText(lat + "°", leftLabelX, y + 4);
             }
-        }
-
-        private void drawLandBase(GraphicsContext graphics) {
-            graphics.setFill(Color.web("#dfeadf", 0.95));
-            graphics.setStroke(Color.web("#b5c8b4", 0.95));
-            graphics.setLineWidth(1.1);
-
-            drawLandMass(graphics, new double[][]{
-                    {-168, 55}, {-150, 70}, {-125, 72}, {-105, 62}, {-82, 58}, {-62, 50}, {-55, 36},
-                    {-74, 18}, {-96, 15}, {-116, 26}, {-130, 45}, {-150, 50}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {-82, 12}, {-70, 10}, {-55, -5}, {-42, -20}, {-52, -48}, {-68, -55},
-                    {-78, -36}, {-82, -12}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {-52, 60}, {-42, 75}, {-25, 75}, {-20, 62}, {-34, 58}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {-10, 35}, {5, 58}, {35, 62}, {60, 55}, {46, 38}, {28, 33}, {12, 36}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {-18, 35}, {12, 36}, {35, 30}, {50, 10}, {42, -20}, {28, -35},
-                    {12, -35}, {-4, -18}, {-14, 5}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {35, 35}, {52, 55}, {88, 67}, {126, 58}, {150, 46}, {142, 20},
-                    {116, 8}, {104, -8}, {78, 8}, {62, 18}, {42, 22}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {112, -12}, {154, -12}, {150, -38}, {132, -44}, {114, -32}
-            });
-            drawLandMass(graphics, new double[][]{
-                    {-180, -64}, {-120, -68}, {-55, -63}, {12, -69}, {78, -64}, {160, -66}, {180, -64},
-                    {180, -84}, {-180, -84}
-            });
-
-            graphics.setFill(Color.web("#8aa489", 0.72));
-            graphics.setFont(Font.font("Segoe UI", FontWeight.BOLD, 11));
-            graphics.setTextAlign(TextAlignment.CENTER);
-            graphics.fillText("North America", screenX(-108), screenY(48));
-            graphics.fillText("South America", screenX(-62), screenY(-22));
-            graphics.fillText("Europe", screenX(18), screenY(50));
-            graphics.fillText("Africa", screenX(20), screenY(4));
-            graphics.fillText("Asia", screenX(92), screenY(40));
-            graphics.fillText("Oceania", screenX(136), screenY(-26));
-        }
-
-        private void drawLandMass(GraphicsContext graphics, double[][] lonLatPairs) {
-            double[] xPoints = new double[lonLatPairs.length];
-            double[] yPoints = new double[lonLatPairs.length];
-            for (int index = 0; index < lonLatPairs.length; index++) {
-                xPoints[index] = screenX(lonLatPairs[index][0]);
-                yPoints[index] = screenY(lonLatPairs[index][1]);
-            }
-            graphics.fillPolygon(xPoints, yPoints, lonLatPairs.length);
-            graphics.strokePolygon(xPoints, yPoints, lonLatPairs.length);
         }
 
         private void drawRegionBox(GraphicsContext graphics, double west, double east, double south, double north,
