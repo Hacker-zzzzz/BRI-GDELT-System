@@ -39,8 +39,18 @@ public class AnalysisService {
 
     public List<CooperationHotspot> cooperationHotspots(int limit) {
         int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
-        return eventRepository.queryCooperationHotspots(500).stream()
+        List<CooperationHotspot> sortedHotspots = eventRepository.queryCooperationHotspots(500).stream()
+                .sorted(Comparator.comparingDouble(CooperationHotspot::growth).reversed()
+                        .thenComparing(Comparator.comparingInt(CooperationHotspot::cooperationEventIncrease).reversed()))
+                .toList();
+        List<CooperationHotspot> growingHotspots = sortedHotspots.stream()
                 .filter(hotspot -> hotspot.growth() > 0 || hotspot.cooperationEventIncrease() > 0)
+                .limit(safeLimit)
+                .toList();
+        if (!growingHotspots.isEmpty()) {
+            return growingHotspots;
+        }
+        return sortedHotspots.stream()
                 .sorted(Comparator.comparingDouble(CooperationHotspot::growth).reversed()
                         .thenComparing(Comparator.comparingInt(CooperationHotspot::cooperationEventIncrease).reversed()))
                 .limit(safeLimit)

@@ -486,17 +486,40 @@ public class GdeltEventRepository {
 
     public List<CooperationHotspot> queryCooperationHotspots(int limit) {
         String sql = """
-                WITH recent_months AS (
+                WITH available_months AS (
                     SELECT substr(event_date, 1, 7) AS month
                     FROM gdelt_events
                     WHERE event_date IS NOT NULL AND length(event_date) >= 7
                     GROUP BY substr(event_date, 1, 7)
-                    ORDER BY month DESC
-                    LIMIT 2
+                ),
+                adjacent_pair AS (
+                    SELECT previous.month AS previous_month, current.month AS current_month
+                    FROM available_months current
+                    JOIN available_months previous
+                      ON previous.month = strftime('%Y-%m', date(current.month || '-01', '-1 month'))
+                    ORDER BY current.month DESC
+                    LIMIT 1
+                ),
+                recent_months AS (
+                    SELECT previous_month AS month, 1 AS month_index
+                    FROM adjacent_pair
+                    UNION ALL
+                    SELECT current_month AS month, 2 AS month_index
+                    FROM adjacent_pair
                 ),
                 month_order AS (
-                    SELECT month, ROW_NUMBER() OVER (ORDER BY month) AS month_index
+                    SELECT month, month_index
                     FROM recent_months
+                ),
+                latest_month AS (
+                    SELECT month
+                    FROM month_order
+                    WHERE month_index = 2
+                ),
+                day_cutoff AS (
+                    SELECT MAX(CAST(substr(event_date, 9, 2) AS INTEGER)) AS max_day
+                    FROM gdelt_events
+                    WHERE substr(event_date, 1, 7) = (SELECT month FROM latest_month)
                 ),
                 country_month_events AS (
                     SELECT actor1_country_code AS country_code, substr(event_date, 1, 7) AS month,
@@ -504,12 +527,14 @@ public class GdeltEventRepository {
                     FROM gdelt_events
                     WHERE actor1_country_code IS NOT NULL AND TRIM(actor1_country_code) <> ''
                       AND substr(event_date, 1, 7) IN (SELECT month FROM recent_months)
+                      AND CAST(substr(event_date, 9, 2) AS INTEGER) <= (SELECT max_day FROM day_cutoff)
                     UNION ALL
                     SELECT actor2_country_code AS country_code, substr(event_date, 1, 7) AS month,
                            event_type, goldstein_scale, avg_tone, num_mentions
                     FROM gdelt_events
                     WHERE actor2_country_code IS NOT NULL AND TRIM(actor2_country_code) <> ''
                       AND substr(event_date, 1, 7) IN (SELECT month FROM recent_months)
+                      AND CAST(substr(event_date, 9, 2) AS INTEGER) <= (SELECT max_day FROM day_cutoff)
                 ),
                 country_month_scores AS (
                     SELECT c.cameo_code AS country_code,
