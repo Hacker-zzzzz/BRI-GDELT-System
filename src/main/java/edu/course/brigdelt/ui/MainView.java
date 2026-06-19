@@ -60,6 +60,7 @@ import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -77,6 +78,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.input.MouseButton;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
 import javafx.util.StringConverter;
@@ -84,9 +86,13 @@ import javafx.util.StringConverter;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -267,7 +273,7 @@ public class MainView {
             case "风险评估" -> createRiskAssessmentPage();
             case "区域分析" -> createRegionAnalysisPage();
             case "国家聚类" -> createClusterAnalysisPage();
-            case "专题地图" -> createMapPage();
+            case "专题地图" -> createInteractiveMapPage();
             case "结果导出" -> createExportPage();
             default -> createPlaceholderPage(page);
         };
@@ -1085,6 +1091,148 @@ public class MainView {
                 createSectionTitle("国家聚类结果"), table);
         VBox.setVgrow(table, Priority.ALWAYS);
         return wrapScrollable(body);
+    }
+
+    private Parent createInteractiveMapPage() {
+        VBox body = createPageBase("一带一路事件空间交互专题地图", "基于 GDELT ActionGeo 经纬度字段，支持缩放、平移、图层叠加和事件点位联动。");
+
+        Label statusText = new Label("正在加载地理事件点位...");
+        statusText.getStyleClass().add("import-status");
+        statusText.setWrapText(true);
+
+        CheckBox cooperationLayer = new CheckBox("合作");
+        cooperationLayer.setSelected(true);
+        CheckBox conflictLayer = new CheckBox("冲突");
+        conflictLayer.setSelected(true);
+        CheckBox otherLayer = new CheckBox("其他");
+        otherLayer.setSelected(true);
+        CheckBox riskLayer = new CheckBox("风险热点");
+        riskLayer.setSelected(true);
+        CheckBox heatLayer = new CheckBox("热度层");
+        heatLayer.setSelected(true);
+
+        ComboBox<Integer> limitBox = new ComboBox<>(FXCollections.observableArrayList(500, 1000, 2000));
+        limitBox.setValue(MapVisualizationService.DEFAULT_POINT_LIMIT);
+        limitBox.setPrefWidth(94);
+        TextField countryFilter = new TextField();
+        countryFilter.setPromptText("国家代码");
+        countryFilter.setPrefWidth(110);
+        Button searchButton = new Button("刷新");
+        searchButton.getStyleClass().add("primary-button");
+        Button resetButton = new Button("重置");
+        resetButton.getStyleClass().add("secondary-button");
+
+        HBox filterRow = new HBox(12,
+                new Label("图层："), cooperationLayer, conflictLayer, otherLayer, riskLayer, heatLayer,
+                new Separator(), new Label("点位："), limitBox,
+                new Label("Actor："), countryFilter, searchButton, resetButton);
+        filterRow.getStyleClass().add("query-form");
+        filterRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label insightText = new Label("等待点位加载后生成空间研判。");
+        insightText.getStyleClass().add("insight-text");
+        insightText.setWrapText(true);
+        VBox insightPanel = createInsightPanel("空间分布研判", insightText);
+        VBox formulaPanel = createFormulaPanel("交互地图说明",
+                "滚轮缩放，拖拽平移，双击重置视图。底图使用离线经纬度网格和重点区域框，事件点按合作、冲突、其他分层绘制，风险热点和热度层可叠加。");
+        HBox insightRow = new HBox(14, insightPanel, formulaPanel);
+        insightRow.getStyleClass().add("chart-row");
+
+        TableView<GeoEventPoint> table = createGeoEventTable();
+        ObservableList<GeoEventPoint> items = FXCollections.observableArrayList();
+        table.setItems(items);
+
+        InteractiveMapPane mapPane = new InteractiveMapPane(point -> {
+            table.getSelectionModel().select(point);
+            table.scrollTo(point);
+        });
+        mapPane.setLayerState(cooperationLayer.isSelected(), conflictLayer.isSelected(), otherLayer.isSelected(),
+                riskLayer.isSelected(), heatLayer.isSelected());
+        VBox mapPanel = new VBox(mapPane);
+        mapPanel.getStyleClass().addAll("chart-panel", "map-chart-panel");
+        mapPanel.setMinHeight(560);
+        mapPanel.setPrefHeight(600);
+        VBox.setVgrow(mapPane, Priority.ALWAYS);
+
+        Runnable refreshLayers = () -> mapPane.setLayerState(cooperationLayer.isSelected(), conflictLayer.isSelected(),
+                otherLayer.isSelected(), riskLayer.isSelected(), heatLayer.isSelected());
+        cooperationLayer.setOnAction(event -> refreshLayers.run());
+        conflictLayer.setOnAction(event -> refreshLayers.run());
+        otherLayer.setOnAction(event -> refreshLayers.run());
+        riskLayer.setOnAction(event -> refreshLayers.run());
+        heatLayer.setOnAction(event -> refreshLayers.run());
+
+        Runnable loadMapData = () -> {
+            Set<String> selectedTypes = selectedMapEventTypes(cooperationLayer, conflictLayer, otherLayer);
+            int limit = limitBox.getValue() == null ? MapVisualizationService.DEFAULT_POINT_LIMIT : limitBox.getValue();
+            String countryCode = countryFilter.getText() == null ? "" : countryFilter.getText().trim();
+            Task<List<GeoEventPoint>> task = new Task<>() {
+                @Override
+                protected List<GeoEventPoint> call() {
+                    return new MapVisualizationService(new DatabaseManager(paths))
+                            .geoEventPoints(limit, selectedTypes, countryCode);
+                }
+            };
+            searchButton.setDisable(true);
+            resetButton.setDisable(true);
+            statusText.setText("正在加载地理事件点位...");
+            task.setOnSucceeded(event -> {
+                List<GeoEventPoint> points = task.getValue();
+                items.setAll(points);
+                mapPane.setPoints(points);
+                insightText.setText(buildMapInsight(points));
+                statusText.setText(points.isEmpty()
+                        ? "暂无包含有效经纬度的事件。"
+                        : "交互专题地图已加载，共显示 " + points.size() + " 个有效事件点位。");
+                searchButton.setDisable(false);
+                resetButton.setDisable(false);
+            });
+            task.setOnFailed(event -> {
+                Throwable exception = task.getException();
+                statusText.setText("专题地图加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+                searchButton.setDisable(false);
+                resetButton.setDisable(false);
+            });
+            Thread thread = new Thread(task, "map-visualization-task");
+            thread.setDaemon(true);
+            thread.start();
+        };
+
+        searchButton.setOnAction(event -> loadMapData.run());
+        countryFilter.setOnAction(event -> loadMapData.run());
+        resetButton.setOnAction(event -> {
+            cooperationLayer.setSelected(true);
+            conflictLayer.setSelected(true);
+            otherLayer.setSelected(true);
+            riskLayer.setSelected(true);
+            heatLayer.setSelected(true);
+            limitBox.setValue(MapVisualizationService.DEFAULT_POINT_LIMIT);
+            countryFilter.clear();
+            mapPane.resetView();
+            loadMapData.run();
+        });
+        loadMapData.run();
+
+        body.getChildren().addAll(statusText, filterRow, mapPanel, insightRow, createSectionTitle("地理事件明细"), table);
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return wrapScrollable(body);
+    }
+
+    private Set<String> selectedMapEventTypes(CheckBox cooperationLayer, CheckBox conflictLayer, CheckBox otherLayer) {
+        Set<String> selectedTypes = new HashSet<>();
+        if (cooperationLayer.isSelected()) {
+            selectedTypes.add(EventType.COOPERATION.name());
+        }
+        if (conflictLayer.isSelected()) {
+            selectedTypes.add(EventType.CONFLICT.name());
+        }
+        if (otherLayer.isSelected()) {
+            selectedTypes.add(EventType.OTHER.name());
+        }
+        if (selectedTypes.isEmpty()) {
+            selectedTypes.add("__NONE__");
+        }
+        return selectedTypes;
     }
 
     private Parent createMapPage() {
@@ -2187,6 +2335,396 @@ public class MainView {
                     "明细区域提供记录、解释说明和后续操作入口。"
             };
         };
+    }
+
+    private static class InteractiveMapPane extends StackPane {
+        private static final double MIN_ZOOM = 0.75;
+        private static final double MAX_ZOOM = 8.0;
+
+        private final Canvas canvas = new Canvas();
+        private final Label hoverLabel = new Label();
+        private final Consumer<GeoEventPoint> selectionHandler;
+        private final List<GeoEventPoint> points = new ArrayList<>();
+        private double zoom = 1.0;
+        private double panX;
+        private double panY;
+        private double dragStartX;
+        private double dragStartY;
+        private boolean showCooperation = true;
+        private boolean showConflict = true;
+        private boolean showOther = true;
+        private boolean showRisk = true;
+        private boolean showHeat = true;
+
+        InteractiveMapPane(Consumer<GeoEventPoint> selectionHandler) {
+            this.selectionHandler = selectionHandler;
+            getStyleClass().add("interactive-map-pane");
+            setMinWidth(0);
+            setPrefWidth(960);
+            setMaxWidth(Double.MAX_VALUE);
+            setMinHeight(540);
+            setPrefHeight(580);
+            canvas.setManaged(false);
+            widthProperty().addListener((observable, oldValue, newValue) -> draw());
+            heightProperty().addListener((observable, oldValue, newValue) -> draw());
+
+            hoverLabel.getStyleClass().add("map-hover-label");
+            hoverLabel.setVisible(false);
+            hoverLabel.setManaged(false);
+            getChildren().addAll(canvas, hoverLabel);
+
+            setOnScroll(event -> {
+                double oldZoom = zoom;
+                double factor = event.getDeltaY() > 0 ? 1.18 : 0.85;
+                zoom = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
+                double centerX = canvas.getWidth() / 2.0;
+                double centerY = canvas.getHeight() / 2.0;
+                double mapDeltaX = (event.getX() - centerX - panX) / oldZoom;
+                double mapDeltaY = (event.getY() - centerY - panY) / oldZoom;
+                panX = event.getX() - centerX - mapDeltaX * zoom;
+                panY = event.getY() - centerY - mapDeltaY * zoom;
+                draw();
+                event.consume();
+            });
+            setOnMousePressed(event -> {
+                if (event.getButton() == MouseButton.PRIMARY) {
+                    dragStartX = event.getX();
+                    dragStartY = event.getY();
+                }
+            });
+            setOnMouseDragged(event -> {
+                if (event.isPrimaryButtonDown()) {
+                    panX += event.getX() - dragStartX;
+                    panY += event.getY() - dragStartY;
+                    dragStartX = event.getX();
+                    dragStartY = event.getY();
+                    hoverLabel.setVisible(false);
+                    draw();
+                }
+            });
+            setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2) {
+                    resetView();
+                    return;
+                }
+                GeoEventPoint hit = findPoint(event.getX(), event.getY());
+                if (hit != null && selectionHandler != null) {
+                    selectionHandler.accept(hit);
+                }
+            });
+            setOnMouseMoved(event -> {
+                GeoEventPoint hit = findPoint(event.getX(), event.getY());
+                if (hit == null) {
+                    hoverLabel.setVisible(false);
+                    return;
+                }
+                hoverLabel.setText(formatHoverText(hit));
+                hoverLabel.resize(260, Region.USE_COMPUTED_SIZE);
+                hoverLabel.relocate(Math.min(event.getX() + 14, Math.max(12, canvas.getWidth() - 280)),
+                        Math.max(12, event.getY() - 46));
+                hoverLabel.setVisible(true);
+            });
+            setOnMouseExited(event -> hoverLabel.setVisible(false));
+        }
+
+        @Override
+        protected void layoutChildren() {
+            double width = Math.max(1, getWidth());
+            double height = Math.max(1, getHeight());
+            canvas.setWidth(width);
+            canvas.setHeight(height);
+            canvas.relocate(0, 0);
+            draw();
+        }
+
+        void setPoints(List<GeoEventPoint> newPoints) {
+            points.clear();
+            if (newPoints != null) {
+                points.addAll(newPoints);
+            }
+            draw();
+        }
+
+        void setLayerState(boolean showCooperation, boolean showConflict, boolean showOther,
+                           boolean showRisk, boolean showHeat) {
+            this.showCooperation = showCooperation;
+            this.showConflict = showConflict;
+            this.showOther = showOther;
+            this.showRisk = showRisk;
+            this.showHeat = showHeat;
+            draw();
+        }
+
+        void resetView() {
+            zoom = 1.0;
+            panX = 0;
+            panY = 0;
+            draw();
+        }
+
+        private void draw() {
+            double width = canvas.getWidth();
+            double height = canvas.getHeight();
+            if (width <= 0 || height <= 0) {
+                return;
+            }
+            GraphicsContext graphics = canvas.getGraphicsContext2D();
+            graphics.clearRect(0, 0, width, height);
+            drawBaseMap(graphics, width, height);
+            if (showHeat) {
+                drawHeatLayer(graphics);
+            }
+            if (showRisk) {
+                drawRiskLayer(graphics);
+            }
+            drawEventPoints(graphics);
+            drawMapHud(graphics, width, height);
+        }
+
+        private void drawBaseMap(GraphicsContext graphics, double width, double height) {
+            graphics.setFill(Color.web("#f8fbfd"));
+            graphics.fillRect(0, 0, width, height);
+            double left = mapLeft();
+            double top = mapTop();
+            double mapWidth = mapWidth();
+            double mapHeight = mapHeight();
+
+            graphics.setFill(Color.web("#eef5f8"));
+            graphics.fillRoundRect(left, top, mapWidth, mapHeight, 8, 8);
+            graphics.setStroke(Color.web("#bfd0dc"));
+            graphics.setLineWidth(1.2);
+            graphics.strokeRoundRect(left, top, mapWidth, mapHeight, 8, 8);
+
+            graphics.setFont(Font.font("Segoe UI", FontWeight.NORMAL, 11));
+            graphics.setTextAlign(TextAlignment.CENTER);
+            for (int lon = -180; lon <= 180; lon += 30) {
+                double x = screenX(lon);
+                graphics.setStroke(lon == 0 ? Color.web("#91a6b8") : Color.web("#d6e0e8"));
+                graphics.setLineWidth(lon == 0 ? 1.2 : 0.8);
+                graphics.strokeLine(x, screenY(-90), x, screenY(90));
+                graphics.setFill(Color.web("#6a7d90"));
+                graphics.fillText(lon + "°", x, Math.min(height - 14, screenY(-90) + 18));
+            }
+            graphics.setTextAlign(TextAlignment.RIGHT);
+            for (int lat = -60; lat <= 90; lat += 30) {
+                double y = screenY(lat);
+                graphics.setStroke(lat == 0 ? Color.web("#91a6b8") : Color.web("#d6e0e8"));
+                graphics.setLineWidth(lat == 0 ? 1.2 : 0.8);
+                graphics.strokeLine(screenX(-180), y, screenX(180), y);
+                graphics.setFill(Color.web("#6a7d90"));
+                graphics.fillText(lat + "°", Math.max(42, screenX(-180) - 8), y + 4);
+            }
+
+            drawRegionBox(graphics, 25, 105, -10, 55, "BRI重点区");
+            drawRegionBox(graphics, 60, 150, -15, 60, "亚欧通道");
+        }
+
+        private void drawRegionBox(GraphicsContext graphics, double west, double east, double south, double north,
+                                   String label) {
+            double x1 = screenX(west);
+            double x2 = screenX(east);
+            double y1 = screenY(north);
+            double y2 = screenY(south);
+            graphics.setStroke(Color.web("#7ea4bd", 0.65));
+            graphics.setLineWidth(1.4);
+            graphics.setLineDashes(7, 5);
+            graphics.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+            graphics.setLineDashes();
+            graphics.setFill(Color.web("#58758a"));
+            graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 11));
+            graphics.fillText(label, Math.min(x1, x2) + 48, Math.min(y1, y2) + 16);
+        }
+
+        private void drawHeatLayer(GraphicsContext graphics) {
+            int lonBuckets = 36;
+            int latBuckets = 18;
+            int[][] buckets = new int[lonBuckets][latBuckets];
+            int max = 0;
+            for (GeoEventPoint point : points) {
+                if (!isVisibleType(point)) {
+                    continue;
+                }
+                int lonIndex = (int) clamp(Math.floor((point.longitude() + 180.0) / 10.0), 0, lonBuckets - 1);
+                int latIndex = (int) clamp(Math.floor((point.latitude() + 90.0) / 10.0), 0, latBuckets - 1);
+                buckets[lonIndex][latIndex]++;
+                max = Math.max(max, buckets[lonIndex][latIndex]);
+            }
+            if (max == 0) {
+                return;
+            }
+            for (int lonIndex = 0; lonIndex < lonBuckets; lonIndex++) {
+                for (int latIndex = 0; latIndex < latBuckets; latIndex++) {
+                    int count = buckets[lonIndex][latIndex];
+                    if (count == 0) {
+                        continue;
+                    }
+                    double lon = lonIndex * 10.0 - 175.0;
+                    double lat = latIndex * 10.0 - 85.0;
+                    double intensity = 0.18 + 0.34 * count / max;
+                    double radius = (10 + 20 * count / (double) max) * Math.sqrt(zoom);
+                    graphics.setFill(Color.web("#f3a536", intensity));
+                    graphics.fillOval(screenX(lon) - radius, screenY(lat) - radius, radius * 2, radius * 2);
+                }
+            }
+        }
+
+        private void drawRiskLayer(GraphicsContext graphics) {
+            for (GeoEventPoint point : points) {
+                if (!isVisibleType(point) || !isRiskPoint(point)) {
+                    continue;
+                }
+                double x = screenX(point.longitude());
+                double y = screenY(point.latitude());
+                double radius = 7.5 + Math.min(8, Math.abs(Math.min(point.avgTone(), point.goldsteinScale())));
+                graphics.setStroke(Color.web("#d97706", 0.82));
+                graphics.setLineWidth(1.7);
+                graphics.strokeOval(x - radius, y - radius, radius * 2, radius * 2);
+            }
+        }
+
+        private void drawEventPoints(GraphicsContext graphics) {
+            for (GeoEventPoint point : points) {
+                if (!isVisibleType(point)) {
+                    continue;
+                }
+                double x = screenX(point.longitude());
+                double y = screenY(point.latitude());
+                if (x < -20 || y < -20 || x > canvas.getWidth() + 20 || y > canvas.getHeight() + 20) {
+                    continue;
+                }
+                if (point.eventType() == EventType.COOPERATION) {
+                    graphics.setFill(Color.web("#17894f", 0.9));
+                    graphics.fillOval(x - 4.4, y - 4.4, 8.8, 8.8);
+                } else if (point.eventType() == EventType.CONFLICT) {
+                    graphics.setFill(Color.web("#c73737", 0.92));
+                    graphics.fillPolygon(new double[]{x, x - 5.4, x + 5.4}, new double[]{y - 5.8, y + 4.6, y + 4.6}, 3);
+                } else {
+                    graphics.setFill(Color.web("#3e6fa3", 0.82));
+                    graphics.fillRect(x - 3.8, y - 3.8, 7.6, 7.6);
+                }
+            }
+        }
+
+        private void drawMapHud(GraphicsContext graphics, double width, double height) {
+            graphics.setFill(Color.web("#ffffff", 0.86));
+            graphics.fillRoundRect(14, 14, 210, 96, 8, 8);
+            graphics.setStroke(Color.web("#d8e0e8"));
+            graphics.strokeRoundRect(14, 14, 210, 96, 8, 8);
+            graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
+            graphics.setFill(Color.web("#25364a"));
+            graphics.setTextAlign(TextAlignment.LEFT);
+            graphics.fillText("图例", 28, 36);
+            drawLegendItem(graphics, 30, 56, Color.web("#17894f"), "合作事件", "circle");
+            drawLegendItem(graphics, 30, 76, Color.web("#c73737"), "冲突事件", "triangle");
+            drawLegendItem(graphics, 30, 96, Color.web("#3e6fa3"), "其他事件 / 风险圈 / 热度层", "square");
+
+            graphics.setFill(Color.web("#ffffff", 0.86));
+            graphics.fillRoundRect(width - 260, height - 48, 244, 32, 8, 8);
+            graphics.setStroke(Color.web("#d8e0e8"));
+            graphics.strokeRoundRect(width - 260, height - 48, 244, 32, 8, 8);
+            graphics.setFill(Color.web("#455a6f"));
+            graphics.setFont(Font.font("Segoe UI", 12));
+            graphics.setTextAlign(TextAlignment.LEFT);
+            graphics.fillText("Zoom " + "%.2f".formatted(zoom) + "x  Center "
+                    + "%.1f".formatted(centerLongitude()) + "°, "
+                    + "%.1f".formatted(centerLatitude()) + "°", width - 246, height - 27);
+        }
+
+        private void drawLegendItem(GraphicsContext graphics, double x, double y, Color color, String label, String shape) {
+            graphics.setFill(color);
+            if ("triangle".equals(shape)) {
+                graphics.fillPolygon(new double[]{x + 5, x, x + 10}, new double[]{y - 6, y + 5, y + 5}, 3);
+            } else if ("square".equals(shape)) {
+                graphics.fillRect(x, y - 6, 10, 10);
+            } else {
+                graphics.fillOval(x, y - 7, 10, 10);
+            }
+            graphics.setFill(Color.web("#455a6f"));
+            graphics.setFont(Font.font("Microsoft YaHei", 11));
+            graphics.fillText(label, x + 18, y + 2);
+        }
+
+        private GeoEventPoint findPoint(double mouseX, double mouseY) {
+            GeoEventPoint best = null;
+            double bestDistance = 10.0;
+            for (GeoEventPoint point : points) {
+                if (!isVisibleType(point)) {
+                    continue;
+                }
+                double distance = Math.hypot(screenX(point.longitude()) - mouseX, screenY(point.latitude()) - mouseY);
+                if (distance < bestDistance) {
+                    best = point;
+                    bestDistance = distance;
+                }
+            }
+            return best;
+        }
+
+        private String formatHoverText(GeoEventPoint point) {
+            return point.globalEventId() + "  " + point.eventDate()
+                    + "\n" + point.actor1CountryCode() + " -> " + point.actor2CountryCode()
+                    + "  " + point.eventType()
+                    + "\nLat " + "%.4f".formatted(point.latitude())
+                    + "  Lon " + "%.4f".formatted(point.longitude())
+                    + "  G " + "%.2f".formatted(point.goldsteinScale())
+                    + "  Tone " + "%.2f".formatted(point.avgTone());
+        }
+
+        private boolean isVisibleType(GeoEventPoint point) {
+            if (point.eventType() == EventType.COOPERATION) {
+                return showCooperation;
+            }
+            if (point.eventType() == EventType.CONFLICT) {
+                return showConflict;
+            }
+            return showOther;
+        }
+
+        private boolean isRiskPoint(GeoEventPoint point) {
+            return point.eventType() == EventType.CONFLICT || point.avgTone() <= -3.0 || point.goldsteinScale() <= -2.0;
+        }
+
+        private double screenX(double longitude) {
+            double base = mapLeft() + (longitude + 180.0) / 360.0 * mapWidth();
+            return canvas.getWidth() / 2.0 + (base - canvas.getWidth() / 2.0) * zoom + panX;
+        }
+
+        private double screenY(double latitude) {
+            double base = mapTop() + (90.0 - latitude) / 180.0 * mapHeight();
+            return canvas.getHeight() / 2.0 + (base - canvas.getHeight() / 2.0) * zoom + panY;
+        }
+
+        private double centerLongitude() {
+            double mapCenterDelta = (canvas.getWidth() / 2.0 - panX - canvas.getWidth() / 2.0) / zoom;
+            double baseX = canvas.getWidth() / 2.0 + mapCenterDelta;
+            return clamp((baseX - mapLeft()) / mapWidth() * 360.0 - 180.0, -180.0, 180.0);
+        }
+
+        private double centerLatitude() {
+            double mapCenterDelta = (canvas.getHeight() / 2.0 - panY - canvas.getHeight() / 2.0) / zoom;
+            double baseY = canvas.getHeight() / 2.0 + mapCenterDelta;
+            return clamp(90.0 - (baseY - mapTop()) / mapHeight() * 180.0, -90.0, 90.0);
+        }
+
+        private double mapLeft() {
+            return 52;
+        }
+
+        private double mapTop() {
+            return 34;
+        }
+
+        private double mapWidth() {
+            return Math.max(1, canvas.getWidth() - 104);
+        }
+
+        private double mapHeight() {
+            return Math.max(1, canvas.getHeight() - 82);
+        }
+
+        private static double clamp(double value, double min, double max) {
+            return Math.max(min, Math.min(max, value));
+        }
     }
 
     private record PageSpec(String title, String description) {

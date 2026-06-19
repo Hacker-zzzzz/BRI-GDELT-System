@@ -370,6 +370,27 @@
     -fx-opacity: 0.85;
 }
 
+.interactive-map-pane {
+    -fx-min-height: 540px;
+    -fx-background-color: #f8fbfd;
+    -fx-border-color: #d8e0e8;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+
+.map-hover-label {
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-background-radius: 6;
+    -fx-border-color: #c6d3df;
+    -fx-border-radius: 6;
+    -fx-text-fill: #25364a;
+    -fx-font-family: "Consolas", "Microsoft YaHei", monospace;
+    -fx-font-size: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(31, 45, 61, 0.14), 10, 0.2, 0, 3);
+}
+
 .insight-panel {
     -fx-padding: 16;
     -fx-min-height: 104px;

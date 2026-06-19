@@ -25,6 +25,8 @@ import java.sql.Types;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 /**
  * Persists cleaned GDELT events into SQLite.
@@ -807,6 +809,66 @@ public class GdeltEventRepository {
         try (Connection connection = databaseManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, limit <= 0 ? 500 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<GeoEventPoint> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(new GeoEventPoint(
+                            resultSet.getString("global_event_id"),
+                            LocalDate.parse(resultSet.getString("event_date")),
+                            resultSet.getString("actor1_country_code"),
+                            resultSet.getString("actor2_country_code"),
+                            parseEventType(resultSet.getString("event_type")),
+                            resultSet.getDouble("action_geo_lat"),
+                            resultSet.getDouble("action_geo_lon"),
+                            resultSet.getDouble("goldstein_scale"),
+                            resultSet.getDouble("avg_tone")
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("专题地图事件点位查询失败。", exception);
+        }
+    }
+
+    public List<GeoEventPoint> queryGeoEventPoints(int limit, Set<String> eventTypes, String countryCode) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                       event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+                FROM gdelt_events
+                WHERE action_geo_lat IS NOT NULL
+                  AND action_geo_lon IS NOT NULL
+                  AND action_geo_lat BETWEEN -90 AND 90
+                  AND action_geo_lon BETWEEN -180 AND 180
+                """);
+        List<String> parameters = new ArrayList<>();
+        if (eventTypes != null && !eventTypes.isEmpty()) {
+            sql.append(" AND event_type IN (");
+            int index = 0;
+            for (String eventType : eventTypes) {
+                if (index > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+                parameters.add(eventType);
+                index++;
+            }
+            sql.append(")");
+        }
+        if (hasText(countryCode)) {
+            sql.append(" AND (actor1_country_code = ? OR actor2_country_code = ?)");
+            parameters.add(countryCode.trim().toUpperCase(Locale.ROOT));
+            parameters.add(countryCode.trim().toUpperCase(Locale.ROOT));
+        }
+        sql.append(" ORDER BY event_date DESC, global_event_id DESC LIMIT ?");
+
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            int parameterIndex = 1;
+            for (String parameter : parameters) {
+                statement.setString(parameterIndex++, parameter);
+            }
+            statement.setInt(parameterIndex, limit <= 0 ? 500 : limit);
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<GeoEventPoint> results = new ArrayList<>();
                 while (resultSet.next()) {

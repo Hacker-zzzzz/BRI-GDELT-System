@@ -5,6 +5,7 @@ import edu.course.brigdelt.repository.DatabaseManager;
 import edu.course.brigdelt.repository.GdeltEventRepository;
 
 import java.util.List;
+import java.util.Set;
 
 public class MapVisualizationService {
 
@@ -21,5 +22,10 @@ public class MapVisualizationService {
             return eventRepository.queryGeoEventPoints(DEFAULT_POINT_LIMIT);
         }
         return eventRepository.queryGeoEventPoints(Math.min(limit, 2000));
+    }
+
+    public List<GeoEventPoint> geoEventPoints(int limit, Set<String> eventTypes, String countryCode) {
+        int effectiveLimit = limit <= 0 ? DEFAULT_POINT_LIMIT : Math.min(limit, 2000);
+        return eventRepository.queryGeoEventPoints(effectiveLimit, eventTypes, countryCode);
     }
 }
