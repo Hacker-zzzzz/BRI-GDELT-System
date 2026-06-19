@@ -17,6 +17,7 @@ import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
+import edu.course.brigdelt.domain.RiskHotspot;
 import edu.course.brigdelt.domain.RegionSummary;
 import edu.course.brigdelt.repository.CountryRepository;
 import edu.course.brigdelt.repository.DatabaseManager;
@@ -922,17 +923,31 @@ public class MainView {
         ObservableList<RiskAssessment> items = FXCollections.observableArrayList();
         table.setItems(items);
 
-        Task<List<RiskAssessment>> task = new Task<>() {
+        BarChart<String, Number> riskHotspotChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        riskHotspotChart.setTitle("风险上升热点 TOP10（风险指数环比增长）");
+        riskHotspotChart.setLegendVisible(false);
+        riskHotspotChart.setAnimated(false);
+        TableView<RiskHotspot> riskHotspotTable = createRiskHotspotTable();
+        ObservableList<RiskHotspot> riskHotspotItems = FXCollections.observableArrayList();
+        riskHotspotTable.setItems(riskHotspotItems);
+
+        Task<RiskAssessmentViewData> task = new Task<>() {
             @Override
-            protected List<RiskAssessment> call() {
-                return new AnalysisService(new DatabaseManager(paths))
-                        .riskRankings(AnalysisService.DEFAULT_RANK_LIMIT);
+            protected RiskAssessmentViewData call() {
+                AnalysisService service = new AnalysisService(new DatabaseManager(paths));
+                return new RiskAssessmentViewData(
+                        service.riskRankings(AnalysisService.DEFAULT_RANK_LIMIT),
+                        service.riskHotspots(10)
+                );
             }
         };
         task.setOnSucceeded(event -> {
-            List<RiskAssessment> results = task.getValue();
+            RiskAssessmentViewData data = task.getValue();
+            List<RiskAssessment> results = data.rankings();
             items.setAll(results);
+            riskHotspotItems.setAll(data.hotspots());
             updateRiskMetrics(results, countryValue, topCountryValue, topIndexValue, highRiskValue);
+            updateRiskHotspotChart(riskHotspotChart, data.hotspots());
             insightText.setText(buildRiskInsight(results));
             statusText.setText(results.isEmpty()
                     ? "暂无风险评估数据。"
@@ -948,7 +963,9 @@ public class MainView {
 
         body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
                 createSectionTitle("风险指数国家排名"), table);
+        body.getChildren().addAll(createSectionTitle("风险热点追踪 TOP10"), wrapChart(riskHotspotChart), riskHotspotTable);
         VBox.setVgrow(table, Priority.ALWAYS);
+        VBox.setVgrow(riskHotspotTable, Priority.ALWAYS);
         return wrapScrollable(body);
     }
 
@@ -1628,6 +1645,24 @@ public class MainView {
         return table;
     }
 
+    private TableView<RiskHotspot> createRiskHotspotTable() {
+        TableView<RiskHotspot> table = new TableView<>();
+        table.getStyleClass().add("event-table");
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        table.setPlaceholder(new Label("暂无可比较的风险热点数据。"));
+        table.getColumns().add(valueColumn("国家", 80, RiskHotspot::countryCode));
+        table.getColumns().add(valueColumn("名称", 120, RiskHotspot::countryName));
+        table.getColumns().add(valueColumn("区域", 120, RiskHotspot::region));
+        table.getColumns().add(valueColumn("上月", 90, RiskHotspot::previousMonth));
+        table.getColumns().add(valueColumn("本月", 90, RiskHotspot::currentMonth));
+        table.getColumns().add(valueColumn("上月指数", 100, hotspot -> "%.1f".formatted(hotspot.previousIndex())));
+        table.getColumns().add(valueColumn("本月指数", 100, hotspot -> "%.1f".formatted(hotspot.currentIndex())));
+        table.getColumns().add(valueColumn("环比增长", 100, hotspot -> "%.1f".formatted(hotspot.growth())));
+        table.getColumns().add(valueColumn("冲突增量", 90, RiskHotspot::conflictEventIncrease));
+        table.setMinHeight(260);
+        return table;
+    }
+
     private TableView<RegionSummary> createRegionTable() {
         TableView<RegionSummary> table = new TableView<>();
         table.getStyleClass().add("event-table");
@@ -1801,6 +1836,15 @@ public class MainView {
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("环比增长");
         for (CooperationHotspot hotspot : hotspots) {
+            series.getData().add(new XYChart.Data<>(hotspot.countryCode(), hotspot.growth()));
+        }
+        chart.getData().setAll(series);
+    }
+
+    private void updateRiskHotspotChart(BarChart<String, Number> chart, List<RiskHotspot> hotspots) {
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("环比增长");
+        for (RiskHotspot hotspot : hotspots) {
             series.getData().add(new XYChart.Data<>(hotspot.countryCode(), hotspot.growth()));
         }
         chart.getData().setAll(series);
@@ -2205,6 +2249,12 @@ public class MainView {
     private record CooperationAnalysisViewData(
             List<CooperationScore> rankings,
             List<CooperationHotspot> hotspots
+    ) {
+    }
+
+    private record RiskAssessmentViewData(
+            List<RiskAssessment> rankings,
+            List<RiskHotspot> hotspots
     ) {
     }
 

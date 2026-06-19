@@ -13,6 +13,7 @@ import edu.course.brigdelt.domain.GeoEventPoint;
 import edu.course.brigdelt.domain.GdeltEvent;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
+import edu.course.brigdelt.domain.RiskHotspot;
 import edu.course.brigdelt.domain.RegionSummary;
 
 import java.sql.Connection;
@@ -662,6 +663,132 @@ public class GdeltEventRepository {
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("风险评估国家排名查询失败。", exception);
+        }
+    }
+
+    public List<RiskHotspot> queryRiskHotspots(int limit) {
+        String sql = """
+                WITH available_months AS (
+                    SELECT substr(event_date, 1, 7) AS month
+                    FROM gdelt_events
+                    WHERE event_date IS NOT NULL AND length(event_date) >= 7
+                    GROUP BY substr(event_date, 1, 7)
+                ),
+                adjacent_pair AS (
+                    SELECT previous.month AS previous_month, current.month AS current_month
+                    FROM available_months current
+                    JOIN available_months previous
+                      ON previous.month = strftime('%Y-%m', date(current.month || '-01', '-1 month'))
+                    ORDER BY current.month DESC
+                    LIMIT 1
+                ),
+                recent_months AS (
+                    SELECT previous_month AS month, 1 AS month_index
+                    FROM adjacent_pair
+                    UNION ALL
+                    SELECT current_month AS month, 2 AS month_index
+                    FROM adjacent_pair
+                ),
+                month_order AS (
+                    SELECT month, month_index
+                    FROM recent_months
+                ),
+                latest_month AS (
+                    SELECT month
+                    FROM month_order
+                    WHERE month_index = 2
+                ),
+                day_cutoff AS (
+                    SELECT MAX(CAST(substr(event_date, 9, 2) AS INTEGER)) AS max_day
+                    FROM gdelt_events
+                    WHERE substr(event_date, 1, 7) = (SELECT month FROM latest_month)
+                ),
+                country_month_events AS (
+                    SELECT actor1_country_code AS country_code, substr(event_date, 1, 7) AS month,
+                           event_type, goldstein_scale, avg_tone
+                    FROM gdelt_events
+                    WHERE actor1_country_code IS NOT NULL AND TRIM(actor1_country_code) <> ''
+                      AND substr(event_date, 1, 7) IN (SELECT month FROM recent_months)
+                      AND CAST(substr(event_date, 9, 2) AS INTEGER) <= (SELECT max_day FROM day_cutoff)
+                    UNION ALL
+                    SELECT actor2_country_code AS country_code, substr(event_date, 1, 7) AS month,
+                           event_type, goldstein_scale, avg_tone
+                    FROM gdelt_events
+                    WHERE actor2_country_code IS NOT NULL AND TRIM(actor2_country_code) <> ''
+                      AND substr(event_date, 1, 7) IN (SELECT month FROM recent_months)
+                      AND CAST(substr(event_date, 9, 2) AS INTEGER) <= (SELECT max_day FROM day_cutoff)
+                ),
+                country_month_scores AS (
+                    SELECT c.cameo_code AS country_code,
+                           c.name_cn AS country_name,
+                           c.region,
+                           e.month,
+                           COUNT(*) AS total_events,
+                           SUM(CASE WHEN e.event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
+                           AVG(e.goldstein_scale) AS average_goldstein,
+                           AVG(e.avg_tone) AS average_avg_tone
+                    FROM country_month_events e
+                    JOIN countries c ON c.cameo_code = e.country_code AND c.is_bri_country = 1
+                    GROUP BY c.cameo_code, c.name_cn, c.region, e.month
+                )
+                SELECT current.country_code,
+                       current.country_name,
+                       current.region,
+                       previous.month AS previous_month,
+                       current.month AS current_month,
+                       previous.total_events AS previous_total_events,
+                       current.total_events AS current_total_events,
+                       previous.conflict_events AS previous_conflict_events,
+                       current.conflict_events AS current_conflict_events,
+                       previous.average_goldstein AS previous_average_goldstein,
+                       current.average_goldstein AS current_average_goldstein,
+                       previous.average_avg_tone AS previous_average_avg_tone,
+                       current.average_avg_tone AS current_average_avg_tone
+                FROM country_month_scores current
+                JOIN month_order current_month ON current_month.month = current.month AND current_month.month_index = 2
+                JOIN country_month_scores previous ON previous.country_code = current.country_code
+                JOIN month_order previous_month ON previous_month.month = previous.month AND previous_month.month_index = 1
+                ORDER BY current.country_code
+                LIMIT ?
+                """;
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, limit <= 0 ? 500 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<RiskHotspot> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    int previousTotalEvents = resultSet.getInt("previous_total_events");
+                    int currentTotalEvents = resultSet.getInt("current_total_events");
+                    int previousConflictEvents = resultSet.getInt("previous_conflict_events");
+                    int currentConflictEvents = resultSet.getInt("current_conflict_events");
+                    double previousIndex = riskIndex(
+                            previousConflictEvents,
+                            ratio(previousConflictEvents, previousTotalEvents),
+                            resultSet.getDouble("previous_average_goldstein"),
+                            resultSet.getDouble("previous_average_avg_tone")
+                    );
+                    double currentIndex = riskIndex(
+                            currentConflictEvents,
+                            ratio(currentConflictEvents, currentTotalEvents),
+                            resultSet.getDouble("current_average_goldstein"),
+                            resultSet.getDouble("current_average_avg_tone")
+                    );
+                    results.add(new RiskHotspot(
+                            resultSet.getString("country_code"),
+                            resultSet.getString("country_name"),
+                            resultSet.getString("region"),
+                            resultSet.getString("previous_month"),
+                            resultSet.getString("current_month"),
+                            previousIndex,
+                            currentIndex,
+                            currentIndex - previousIndex,
+                            currentConflictEvents - previousConflictEvents
+                    ));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("风险热点追踪查询失败。", exception);
         }
     }
 

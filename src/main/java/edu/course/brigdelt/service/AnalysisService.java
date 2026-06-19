@@ -5,6 +5,7 @@ import edu.course.brigdelt.domain.CooperationHotspot;
 import edu.course.brigdelt.domain.Country;
 import edu.course.brigdelt.domain.CountryClusterResult;
 import edu.course.brigdelt.domain.RiskAssessment;
+import edu.course.brigdelt.domain.RiskHotspot;
 import edu.course.brigdelt.domain.RegionSummary;
 import edu.course.brigdelt.repository.CountryRepository;
 import edu.course.brigdelt.repository.DatabaseManager;
@@ -63,6 +64,24 @@ public class AnalysisService {
     public List<RiskAssessment> riskRankings(int limit) {
         return eventRepository.queryRiskAssessments(effectiveLimit(limit)).stream()
                 .sorted(Comparator.comparingDouble(RiskAssessment::riskIndex).reversed())
+                .toList();
+    }
+
+    public List<RiskHotspot> riskHotspots(int limit) {
+        int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
+        List<RiskHotspot> sortedHotspots = eventRepository.queryRiskHotspots(500).stream()
+                .sorted(Comparator.comparingDouble(RiskHotspot::growth).reversed()
+                        .thenComparing(Comparator.comparingInt(RiskHotspot::conflictEventIncrease).reversed()))
+                .toList();
+        List<RiskHotspot> growingHotspots = sortedHotspots.stream()
+                .filter(hotspot -> hotspot.growth() > 0 || hotspot.conflictEventIncrease() > 0)
+                .limit(safeLimit)
+                .toList();
+        if (!growingHotspots.isEmpty()) {
+            return growingHotspots;
+        }
+        return sortedHotspots.stream()
+                .limit(safeLimit)
                 .toList();
     }
 
