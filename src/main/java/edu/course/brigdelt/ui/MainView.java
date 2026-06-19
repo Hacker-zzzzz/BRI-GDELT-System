@@ -328,12 +328,15 @@ public class MainView {
         );
 
         PieChart typePieChart = new PieChart();
+        typePieChart.getStyleClass().add("premium-pie-chart");
+        typePieChart.getStyleClass().add("event-type-pie-chart");
         typePieChart.setTitle("事件类型结构");
         typePieChart.setLegendVisible(true);
 
         CategoryAxis topCountryAxis = new CategoryAxis();
         topCountryAxis.setTickLabelRotation(0);
         BarChart<String, Number> topCountryChart = new BarChart<>(topCountryAxis, new NumberAxis());
+        topCountryChart.getStyleClass().add("premium-bar-chart");
         topCountryChart.setTitle("国家事件量 TOP8");
         topCountryChart.setLegendVisible(false);
         topCountryChart.setAnimated(false);
@@ -869,6 +872,8 @@ public class MainView {
         table.setItems(items);
 
         BarChart<String, Number> hotspotChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        hotspotChart.getStyleClass().add("premium-bar-chart");
+        hotspotChart.getStyleClass().add("cooperation-bar-chart");
         hotspotChart.setTitle("新兴合作热点 TOP10（合作指数环比增长）");
         hotspotChart.setLegendVisible(false);
         hotspotChart.setAnimated(false);
@@ -947,6 +952,8 @@ public class MainView {
         table.setItems(items);
 
         BarChart<String, Number> riskHotspotChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        riskHotspotChart.getStyleClass().add("premium-bar-chart");
+        riskHotspotChart.getStyleClass().add("risk-bar-chart");
         riskHotspotChart.setTitle("风险上升热点 TOP10（风险指数环比增长）");
         riskHotspotChart.setLegendVisible(false);
         riskHotspotChart.setAnimated(false);
@@ -1023,6 +1030,7 @@ public class MainView {
         NumberAxis scoreAxis = new NumberAxis(0, 100, 10);
         scoreAxis.setLabel("归一化指数");
         BarChart<String, Number> chart = new BarChart<>(axis, scoreAxis);
+        chart.getStyleClass().add("premium-region-bar-chart");
         chart.setTitle("区域合作/风险指数对比");
         chart.setAnimated(false);
         chart.setLegendVisible(true);
@@ -1647,9 +1655,11 @@ public class MainView {
         table.setItems(tableItems);
 
         PieChart cooperationSubtypeChart = new PieChart();
+        cooperationSubtypeChart.getStyleClass().add("premium-pie-chart");
         cooperationSubtypeChart.setTitle("合作事件子类分布（04-06）");
         cooperationSubtypeChart.setLegendVisible(true);
         PieChart conflictSubtypeChart = new PieChart();
+        conflictSubtypeChart.getStyleClass().add("premium-pie-chart");
         conflictSubtypeChart.setTitle("冲突事件子类分布（08-14）");
         conflictSubtypeChart.setLegendVisible(true);
         HBox subtypeCharts = new HBox(14, wrapChart(cooperationSubtypeChart), wrapChart(conflictSubtypeChart));

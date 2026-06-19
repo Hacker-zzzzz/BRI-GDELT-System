@@ -389,6 +389,122 @@
     -fx-stroke-width: 2px;
 }
 
+.premium-bar-chart .default-color0.chart-bar {
+    -fx-bar-fill: #7ec8e3;
+}
+
+.cooperation-bar-chart .default-color0.chart-bar {
+    -fx-bar-fill: #8dd8c7;
+}
+
+.risk-bar-chart .default-color0.chart-bar {
+    -fx-bar-fill: #f6a6b2;
+}
+
+.premium-region-bar-chart .default-color0.chart-bar {
+    -fx-bar-fill: #86bff2;
+}
+
+.premium-region-bar-chart .default-color1.chart-bar {
+    -fx-bar-fill: #f5a3c7;
+}
+
+.premium-region-bar-chart .default-color0.chart-legend-item-symbol {
+    -fx-background-color: #86bff2;
+}
+
+.premium-region-bar-chart .default-color1.chart-legend-item-symbol {
+    -fx-background-color: #f5a3c7;
+}
+
+.premium-pie-chart .default-color0.chart-pie {
+    -fx-pie-color: #86bff2;
+}
+
+.premium-pie-chart .default-color1.chart-pie {
+    -fx-pie-color: #f5a3c7;
+}
+
+.premium-pie-chart .default-color2.chart-pie {
+    -fx-pie-color: #9be3c6;
+}
+
+.premium-pie-chart .default-color3.chart-pie {
+    -fx-pie-color: #f8c784;
+}
+
+.premium-pie-chart .default-color4.chart-pie {
+    -fx-pie-color: #c8b6ff;
+}
+
+.premium-pie-chart .default-color5.chart-pie {
+    -fx-pie-color: #8de3e8;
+}
+
+.premium-pie-chart .default-color6.chart-pie {
+    -fx-pie-color: #f7b7d2;
+}
+
+.premium-pie-chart .default-color7.chart-pie {
+    -fx-pie-color: #f4e28a;
+}
+
+.premium-pie-chart .default-color0.chart-legend-item-symbol {
+    -fx-background-color: #86bff2;
+}
+
+.premium-pie-chart .default-color1.chart-legend-item-symbol {
+    -fx-background-color: #f5a3c7;
+}
+
+.premium-pie-chart .default-color2.chart-legend-item-symbol {
+    -fx-background-color: #9be3c6;
+}
+
+.premium-pie-chart .default-color3.chart-legend-item-symbol {
+    -fx-background-color: #f8c784;
+}
+
+.premium-pie-chart .default-color4.chart-legend-item-symbol {
+    -fx-background-color: #c8b6ff;
+}
+
+.premium-pie-chart .default-color5.chart-legend-item-symbol {
+    -fx-background-color: #8de3e8;
+}
+
+.premium-pie-chart .default-color6.chart-legend-item-symbol {
+    -fx-background-color: #f7b7d2;
+}
+
+.premium-pie-chart .default-color7.chart-legend-item-symbol {
+    -fx-background-color: #f4e28a;
+}
+
+.event-type-pie-chart .default-color0.chart-pie {
+    -fx-pie-color: #86bff2;
+}
+
+.event-type-pie-chart .default-color1.chart-pie {
+    -fx-pie-color: #f5a3c7;
+}
+
+.event-type-pie-chart .default-color2.chart-pie {
+    -fx-pie-color: #9be3c6;
+}
+
+.event-type-pie-chart .default-color0.chart-legend-item-symbol {
+    -fx-background-color: #86bff2;
+}
+
+.event-type-pie-chart .default-color1.chart-legend-item-symbol {
+    -fx-background-color: #f5a3c7;
+}
+
+.event-type-pie-chart .default-color2.chart-legend-item-symbol {
+    -fx-background-color: #9be3c6;
+}
+
 .map-scatter .default-color0.chart-symbol {
     -fx-background-color: #17894f;
     -fx-background-radius: 9px;
