@@ -24,8 +24,10 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -795,34 +797,80 @@ public class GdeltEventRepository {
     }
 
     public List<GeoEventPoint> queryGeoEventPoints(int limit) {
-        String sql = """
-                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
-                       event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+        return queryGeoEventPoints(limit, Set.of(), "", null, null);
+    }
+
+    public List<GeoEventPoint> queryGeoEventPoints(int limit, Set<String> eventTypes, String countryCode) {
+        return queryGeoEventPoints(limit, eventTypes, countryCode, null, null);
+    }
+
+    public List<LocalDate> queryGeoEventDates(Set<String> eventTypes, String countryCode) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT DISTINCT event_date
                 FROM gdelt_events
                 WHERE action_geo_lat IS NOT NULL
                   AND action_geo_lon IS NOT NULL
                   AND action_geo_lat BETWEEN -90 AND 90
                   AND action_geo_lon BETWEEN -180 AND 180
+                """);
+        List<String> parameters = appendGeoPointFilters(sql, eventTypes, countryCode, null, null);
+        sql.append(" ORDER BY event_date");
+
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            bindStringParameters(statement, parameters, 1);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                List<LocalDate> results = new ArrayList<>();
+                while (resultSet.next()) {
+                    results.add(LocalDate.parse(resultSet.getString("event_date")));
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("专题地图日期列表查询失败。", exception);
+        }
+    }
+
+    public List<GeoEventPoint> queryGeoEventPoints(int limit, Set<String> eventTypes, String countryCode,
+                                                   LocalDate startDate, LocalDate endDate) {
+        StringBuilder filters = new StringBuilder("""
+                FROM gdelt_events
+                WHERE action_geo_lat IS NOT NULL
+                  AND action_geo_lon IS NOT NULL
+                  AND action_geo_lat BETWEEN -90 AND 90
+                  AND action_geo_lon BETWEEN -180 AND 180
+                """);
+        List<String> parameters = appendGeoPointFilters(filters, eventTypes, countryCode, startDate, endDate);
+        String sql = """
+                WITH filtered AS (
+                    SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                           event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+                    %s
+                ),
+                ranked AS (
+                    SELECT filtered.*,
+                           ROW_NUMBER() OVER (PARTITION BY event_date ORDER BY global_event_id DESC) AS date_rank,
+                           (SELECT COUNT(DISTINCT event_date) FROM filtered) AS date_count
+                    FROM filtered
+                )
+                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                       event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+                FROM ranked
+                WHERE date_rank <= MAX(1, (? + date_count - 1) / date_count)
                 ORDER BY event_date DESC, global_event_id DESC
                 LIMIT ?
-                """;
+                """.formatted(filters);
+
         try (Connection connection = databaseManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, limit <= 0 ? 500 : limit);
+            int parameterIndex = bindStringParameters(statement, parameters, 1);
+            int effectiveLimit = limit <= 0 ? 500 : limit;
+            statement.setInt(parameterIndex++, effectiveLimit);
+            statement.setInt(parameterIndex, effectiveLimit);
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<GeoEventPoint> results = new ArrayList<>();
                 while (resultSet.next()) {
-                    results.add(new GeoEventPoint(
-                            resultSet.getString("global_event_id"),
-                            LocalDate.parse(resultSet.getString("event_date")),
-                            resultSet.getString("actor1_country_code"),
-                            resultSet.getString("actor2_country_code"),
-                            parseEventType(resultSet.getString("event_type")),
-                            resultSet.getDouble("action_geo_lat"),
-                            resultSet.getDouble("action_geo_lon"),
-                            resultSet.getDouble("goldstein_scale"),
-                            resultSet.getDouble("avg_tone")
-                    ));
+                    results.add(mapGeoEventPoint(resultSet));
                 }
                 return results;
             }
@@ -831,16 +879,53 @@ public class GdeltEventRepository {
         }
     }
 
-    public List<GeoEventPoint> queryGeoEventPoints(int limit, Set<String> eventTypes, String countryCode) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
-                       event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+    public Map<LocalDate, List<GeoEventPoint>> queryGeoEventPointSeries(int limit, Set<String> eventTypes,
+                                                                        String countryCode) {
+        StringBuilder filters = new StringBuilder("""
                 FROM gdelt_events
                 WHERE action_geo_lat IS NOT NULL
                   AND action_geo_lon IS NOT NULL
                   AND action_geo_lat BETWEEN -90 AND 90
                   AND action_geo_lon BETWEEN -180 AND 180
                 """);
+        List<String> parameters = appendGeoPointFilters(filters, eventTypes, countryCode, null, null);
+        String sql = """
+                WITH filtered AS (
+                    SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                           event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+                    %s
+                ),
+                ranked AS (
+                    SELECT filtered.*,
+                           ROW_NUMBER() OVER (PARTITION BY event_date ORDER BY global_event_id DESC) AS date_rank
+                    FROM filtered
+                )
+                SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
+                       event_type, action_geo_lat, action_geo_lon, goldstein_scale, avg_tone
+                FROM ranked
+                WHERE date_rank <= ?
+                ORDER BY event_date, global_event_id DESC
+                """.formatted(filters);
+
+        try (Connection connection = databaseManager.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            int parameterIndex = bindStringParameters(statement, parameters, 1);
+            statement.setInt(parameterIndex, limit <= 0 ? 500 : limit);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                Map<LocalDate, List<GeoEventPoint>> results = new LinkedHashMap<>();
+                while (resultSet.next()) {
+                    GeoEventPoint point = mapGeoEventPoint(resultSet);
+                    results.computeIfAbsent(point.eventDate(), key -> new ArrayList<>()).add(point);
+                }
+                return results;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("专题地图时间序列点位查询失败。", exception);
+        }
+    }
+
+    private List<String> appendGeoPointFilters(StringBuilder sql, Set<String> eventTypes, String countryCode,
+                                               LocalDate startDate, LocalDate endDate) {
         List<String> parameters = new ArrayList<>();
         if (eventTypes != null && !eventTypes.isEmpty()) {
             sql.append(" AND event_type IN (");
@@ -860,35 +945,38 @@ public class GdeltEventRepository {
             parameters.add(countryCode.trim().toUpperCase(Locale.ROOT));
             parameters.add(countryCode.trim().toUpperCase(Locale.ROOT));
         }
-        sql.append(" ORDER BY event_date DESC, global_event_id DESC LIMIT ?");
-
-        try (Connection connection = databaseManager.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql.toString())) {
-            int parameterIndex = 1;
-            for (String parameter : parameters) {
-                statement.setString(parameterIndex++, parameter);
-            }
-            statement.setInt(parameterIndex, limit <= 0 ? 500 : limit);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                List<GeoEventPoint> results = new ArrayList<>();
-                while (resultSet.next()) {
-                    results.add(new GeoEventPoint(
-                            resultSet.getString("global_event_id"),
-                            LocalDate.parse(resultSet.getString("event_date")),
-                            resultSet.getString("actor1_country_code"),
-                            resultSet.getString("actor2_country_code"),
-                            parseEventType(resultSet.getString("event_type")),
-                            resultSet.getDouble("action_geo_lat"),
-                            resultSet.getDouble("action_geo_lon"),
-                            resultSet.getDouble("goldstein_scale"),
-                            resultSet.getDouble("avg_tone")
-                    ));
-                }
-                return results;
-            }
-        } catch (SQLException exception) {
-            throw new IllegalStateException("专题地图事件点位查询失败。", exception);
+        if (startDate != null) {
+            sql.append(" AND event_date >= ?");
+            parameters.add(startDate.toString());
         }
+        if (endDate != null) {
+            sql.append(" AND event_date <= ?");
+            parameters.add(endDate.toString());
+        }
+        return parameters;
+    }
+
+    private int bindStringParameters(PreparedStatement statement, List<String> parameters, int startIndex)
+            throws SQLException {
+        int parameterIndex = startIndex;
+        for (String parameter : parameters) {
+            statement.setString(parameterIndex++, parameter);
+        }
+        return parameterIndex;
+    }
+
+    private GeoEventPoint mapGeoEventPoint(ResultSet resultSet) throws SQLException {
+        return new GeoEventPoint(
+                resultSet.getString("global_event_id"),
+                LocalDate.parse(resultSet.getString("event_date")),
+                resultSet.getString("actor1_country_code"),
+                resultSet.getString("actor2_country_code"),
+                parseEventType(resultSet.getString("event_type")),
+                resultSet.getDouble("action_geo_lat"),
+                resultSet.getDouble("action_geo_lon"),
+                resultSet.getDouble("goldstein_scale"),
+                resultSet.getDouble("avg_tone")
+        );
     }
 
     public List<RegionSummary> queryRegionSummaries() {

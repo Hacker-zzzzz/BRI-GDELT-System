@@ -28,6 +28,8 @@ import edu.course.brigdelt.service.EventQueryService;
 import edu.course.brigdelt.service.GdeltImportService;
 import edu.course.brigdelt.service.MapVisualizationService;
 import edu.course.brigdelt.service.ReportExportService;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
@@ -67,6 +69,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.Slider;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
@@ -81,6 +84,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.input.MouseButton;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import javafx.util.Duration;
 import javafx.util.StringConverter;
 
 import java.io.File;
@@ -89,8 +93,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1117,17 +1123,39 @@ public class MainView {
         TextField countryFilter = new TextField();
         countryFilter.setPromptText("国家代码");
         countryFilter.setPrefWidth(110);
+        ComboBox<String> windowBox = new ComboBox<>(FXCollections.observableArrayList("单日", "7日", "30日", "全部"));
+        windowBox.setValue("30日");
+        windowBox.setPrefWidth(90);
+        Slider dateSlider = new Slider(0, 0, 0);
+        dateSlider.setPrefWidth(260);
+        dateSlider.setShowTickMarks(false);
+        dateSlider.setShowTickLabels(false);
+        dateSlider.setDisable(true);
+        Label dateLabel = new Label("时间：暂无");
+        dateLabel.setMinWidth(190);
+        Button playButton = new Button("播放");
+        playButton.getStyleClass().add("secondary-button");
+        playButton.setMinWidth(64);
+        playButton.setDisable(true);
         Button searchButton = new Button("刷新");
         searchButton.getStyleClass().add("primary-button");
+        searchButton.setMinWidth(64);
         Button resetButton = new Button("重置");
         resetButton.getStyleClass().add("secondary-button");
+        resetButton.setMinWidth(64);
 
-        HBox filterRow = new HBox(12,
+        HBox layerFilterRow = new HBox(12,
                 new Label("图层："), cooperationLayer, conflictLayer, otherLayer, riskLayer, heatLayer,
                 new Separator(), new Label("点位："), limitBox,
                 new Label("Actor："), countryFilter, searchButton, resetButton);
+        layerFilterRow.setAlignment(Pos.CENTER_LEFT);
+        HBox timeFilterRow = new HBox(12,
+                new Label("窗口："), windowBox, dateSlider, dateLabel, playButton);
+        timeFilterRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(dateSlider, Priority.ALWAYS);
+        dateSlider.setMaxWidth(Double.MAX_VALUE);
+        VBox filterRow = new VBox(10, layerFilterRow, timeFilterRow);
         filterRow.getStyleClass().add("query-form");
-        filterRow.setAlignment(Pos.CENTER_LEFT);
 
         Label insightText = new Label("等待点位加载后生成空间研判。");
         insightText.getStyleClass().add("insight-text");
@@ -1162,56 +1190,195 @@ public class MainView {
         riskLayer.setOnAction(event -> refreshLayers.run());
         heatLayer.setOnAction(event -> refreshLayers.run());
 
-        Runnable loadMapData = () -> {
+        List<LocalDate> availableDates = new ArrayList<>();
+        Map<LocalDate, List<GeoEventPoint>> seriesCache = new LinkedHashMap<>();
+        int[] currentPointLimit = {MapVisualizationService.DEFAULT_POINT_LIMIT};
+        boolean[] updatingSlider = {false};
+        boolean[] suppressPreload = {false};
+        Timeline[] playback = {null};
+        Runnable[] preloadMapSeries = new Runnable[1];
+        Runnable[] applyCurrentFrame = new Runnable[1];
+
+        applyCurrentFrame[0] = () -> {
+            String window = windowBox.getValue() == null ? "30日" : windowBox.getValue();
+            if (availableDates.isEmpty()) {
+                items.clear();
+                mapPane.setPoints(List.of());
+                dateLabel.setText("时间：暂无");
+                statusText.setText("暂无包含有效经纬度的事件。");
+                insightText.setText(buildMapInsight(List.of()));
+                dateSlider.setDisable(true);
+                playButton.setDisable(true);
+                return;
+            }
+            int selectedIndex = (int) Math.round(dateSlider.getValue());
+            selectedIndex = Math.max(0, Math.min(selectedIndex, availableDates.size() - 1));
+            LocalDate endDate = availableDates.get(selectedIndex);
+            LocalDate startDate = mapWindowStart(window, availableDates, selectedIndex);
+            if ("全部".equals(window)) {
+                startDate = availableDates.get(0);
+                endDate = availableDates.get(availableDates.size() - 1);
+            }
+            List<GeoEventPoint> points = mapCachedWindowPoints(seriesCache, startDate, endDate, currentPointLimit[0]);
+            mapPane.setPoints(points);
+            dateLabel.setText(formatMapWindowLabel(window,
+                    "全部".equals(window) ? null : startDate,
+                    "全部".equals(window) ? null : endDate,
+                    availableDates));
+            statusText.setText(points.isEmpty()
+                    ? "暂无包含有效经纬度的事件。"
+                    : "交互专题地图播放中，" + dateLabel.getText() + "，当前帧 " + points.size() + " 个有效事件点位。");
+        };
+
+        preloadMapSeries[0] = () -> {
+            if (playback[0] != null) {
+                playback[0].stop();
+                playButton.setText("播放");
+            }
             Set<String> selectedTypes = selectedMapEventTypes(cooperationLayer, conflictLayer, otherLayer);
             int limit = limitBox.getValue() == null ? MapVisualizationService.DEFAULT_POINT_LIMIT : limitBox.getValue();
+            currentPointLimit[0] = limit;
             String countryCode = countryFilter.getText() == null ? "" : countryFilter.getText().trim();
-            Task<List<GeoEventPoint>> task = new Task<>() {
+            int requestedDateIndex = (int) Math.round(dateSlider.getValue());
+            boolean keepDateIndex = !availableDates.isEmpty();
+            Task<MapSeriesLoadResult> task = new Task<>() {
                 @Override
-                protected List<GeoEventPoint> call() {
-                    return new MapVisualizationService(new DatabaseManager(paths))
-                            .geoEventPoints(limit, selectedTypes, countryCode);
+                protected MapSeriesLoadResult call() {
+                    MapVisualizationService service = new MapVisualizationService(new DatabaseManager(paths));
+                    Map<LocalDate, List<GeoEventPoint>> series = service.geoEventPointSeries(limit, selectedTypes, countryCode);
+                    return new MapSeriesLoadResult(new ArrayList<>(series.keySet()), series);
                 }
             };
             searchButton.setDisable(true);
             resetButton.setDisable(true);
-            statusText.setText("正在加载地理事件点位...");
+            playButton.setDisable(true);
+            dateSlider.setDisable(true);
+            statusText.setText("正在准备时间序列...");
             task.setOnSucceeded(event -> {
-                List<GeoEventPoint> points = task.getValue();
-                items.setAll(points);
-                mapPane.setPoints(points);
-                insightText.setText(buildMapInsight(points));
-                statusText.setText(points.isEmpty()
+                MapSeriesLoadResult result = task.getValue();
+                availableDates.clear();
+                availableDates.addAll(result.availableDates());
+                seriesCache.clear();
+                seriesCache.putAll(result.series());
+                updatingSlider[0] = true;
+                dateSlider.setMin(0);
+                dateSlider.setMax(Math.max(0, availableDates.size() - 1));
+                if (availableDates.isEmpty()) {
+                    dateSlider.setValue(0);
+                } else if (!keepDateIndex) {
+                    dateSlider.setValue(availableDates.size() - 1);
+                } else {
+                    dateSlider.setValue(Math.max(0, Math.min(requestedDateIndex, availableDates.size() - 1)));
+                }
+                String window = windowBox.getValue() == null ? "30日" : windowBox.getValue();
+                dateSlider.setDisable(availableDates.isEmpty() || "全部".equals(window));
+                playButton.setDisable(availableDates.size() < 2 || "全部".equals(window));
+                updatingSlider[0] = false;
+                applyCurrentFrame[0].run();
+                List<GeoEventPoint> currentPoints = mapPane.pointsSnapshot();
+                items.setAll(currentPoints);
+                insightText.setText(buildMapInsight(currentPoints));
+                int cachedPoints = seriesCache.values().stream().mapToInt(List::size).sum();
+                statusText.setText(availableDates.isEmpty()
                         ? "暂无包含有效经纬度的事件。"
-                        : "交互专题地图已加载，共显示 " + points.size() + " 个有效事件点位。");
+                        : "时间序列已准备，共 " + availableDates.size() + " 个日期、缓存 "
+                        + cachedPoints + " 个代表点。");
                 searchButton.setDisable(false);
                 resetButton.setDisable(false);
             });
             task.setOnFailed(event -> {
                 Throwable exception = task.getException();
-                statusText.setText("专题地图加载失败：" + (exception == null ? "未知错误" : exception.getMessage()));
+                statusText.setText("专题地图时间序列准备失败：" + (exception == null ? "未知错误" : exception.getMessage()));
                 searchButton.setDisable(false);
                 resetButton.setDisable(false);
+                playButton.setDisable(availableDates.size() < 2 || "全部".equals(windowBox.getValue()));
             });
-            Thread thread = new Thread(task, "map-visualization-task");
+            Thread thread = new Thread(task, "map-series-preload-task");
             thread.setDaemon(true);
             thread.start();
         };
 
-        searchButton.setOnAction(event -> loadMapData.run());
-        countryFilter.setOnAction(event -> loadMapData.run());
+        Runnable syncTableAndInsight = () -> {
+            List<GeoEventPoint> currentPoints = mapPane.pointsSnapshot();
+            items.setAll(currentPoints);
+            insightText.setText(buildMapInsight(currentPoints));
+        };
+
+        dateSlider.valueChangingProperty().addListener((observable, wasChanging, isChanging) -> {
+            if (!isChanging && !updatingSlider[0]) {
+                applyCurrentFrame[0].run();
+                syncTableAndInsight.run();
+            }
+        });
+        dateSlider.setOnMouseReleased(event -> {
+            if (!updatingSlider[0]) {
+                applyCurrentFrame[0].run();
+                syncTableAndInsight.run();
+            }
+        });
+        windowBox.setOnAction(event -> {
+            if (suppressPreload[0]) {
+                return;
+            }
+            if (playback[0] != null) {
+                playback[0].stop();
+                playButton.setText("播放");
+            }
+            applyCurrentFrame[0].run();
+            syncTableAndInsight.run();
+        });
+        playButton.setOnAction(event -> {
+            if (playback[0] != null && playback[0].getStatus() == Timeline.Status.RUNNING) {
+                playback[0].stop();
+                playButton.setText("播放");
+                syncTableAndInsight.run();
+                return;
+            }
+            playback[0] = new Timeline(new KeyFrame(Duration.millis(280), frame -> {
+                if (dateSlider.getValue() >= dateSlider.getMax()) {
+                    playback[0].stop();
+                    playButton.setText("播放");
+                    syncTableAndInsight.run();
+                    return;
+                }
+                updatingSlider[0] = true;
+                dateSlider.setValue(dateSlider.getValue() + 1);
+                updatingSlider[0] = false;
+                applyCurrentFrame[0].run();
+            }));
+            playback[0].setCycleCount(Timeline.INDEFINITE);
+            playback[0].play();
+            playButton.setText("暂停");
+        });
+
+        searchButton.setOnAction(event -> preloadMapSeries[0].run());
+        countryFilter.setOnAction(event -> preloadMapSeries[0].run());
+        limitBox.setOnAction(event -> {
+            if (!suppressPreload[0]) {
+                preloadMapSeries[0].run();
+            }
+        });
         resetButton.setOnAction(event -> {
+            if (playback[0] != null) {
+                playback[0].stop();
+                playButton.setText("播放");
+            }
+            suppressPreload[0] = true;
             cooperationLayer.setSelected(true);
             conflictLayer.setSelected(true);
             otherLayer.setSelected(true);
             riskLayer.setSelected(true);
             heatLayer.setSelected(true);
             limitBox.setValue(MapVisualizationService.DEFAULT_POINT_LIMIT);
+            windowBox.setValue("30日");
+            suppressPreload[0] = false;
+            availableDates.clear();
+            seriesCache.clear();
             countryFilter.clear();
             mapPane.resetView();
-            loadMapData.run();
+            preloadMapSeries[0].run();
         });
-        loadMapData.run();
+        preloadMapSeries[0].run();
 
         body.getChildren().addAll(statusText, filterRow, mapPanel, insightRow, createSectionTitle("地理事件明细"), table);
         VBox.setVgrow(table, Priority.ALWAYS);
@@ -1233,6 +1400,62 @@ public class MainView {
             selectedTypes.add("__NONE__");
         }
         return selectedTypes;
+    }
+
+    private LocalDate mapWindowStart(String window, List<LocalDate> availableDates, int selectedIndex) {
+        if (availableDates == null || availableDates.isEmpty()) {
+            return null;
+        }
+        int safeIndex = Math.max(0, Math.min(selectedIndex, availableDates.size() - 1));
+        return switch (window) {
+            case "7日" -> availableDates.get(Math.max(0, safeIndex - 6));
+            case "30日" -> availableDates.get(Math.max(0, safeIndex - 29));
+            case "全部" -> null;
+            default -> availableDates.get(safeIndex);
+        };
+    }
+
+    private String formatMapWindowLabel(String window, LocalDate startDate, LocalDate endDate,
+                                        List<LocalDate> availableDates) {
+        if (availableDates == null || availableDates.isEmpty()) {
+            return "时间：暂无";
+        }
+        if ("全部".equals(window)) {
+            return "时间：全部 " + availableDates.get(0) + " 至 " + availableDates.get(availableDates.size() - 1);
+        }
+        if (startDate == null || endDate == null || startDate.equals(endDate)) {
+            return "时间：" + (endDate == null ? "-" : endDate);
+        }
+        return "时间：" + startDate + " 至 " + endDate;
+    }
+
+    private List<GeoEventPoint> mapCachedWindowPoints(Map<LocalDate, List<GeoEventPoint>> series,
+                                                      LocalDate startDate, LocalDate endDate, int limit) {
+        if (series == null || series.isEmpty() || startDate == null || endDate == null) {
+            return List.of();
+        }
+        int effectiveLimit = limit <= 0 ? MapVisualizationService.DEFAULT_POINT_LIMIT : Math.min(limit, 2000);
+        List<LocalDate> frameDates = new ArrayList<>();
+        for (LocalDate date : series.keySet()) {
+            if ((date.isEqual(startDate) || date.isAfter(startDate))
+                    && (date.isEqual(endDate) || date.isBefore(endDate))) {
+                frameDates.add(date);
+            }
+        }
+        if (frameDates.isEmpty()) {
+            return List.of();
+        }
+        int perDateLimit = Math.max(1, (effectiveLimit + frameDates.size() - 1) / frameDates.size());
+        List<GeoEventPoint> results = new ArrayList<>();
+        for (LocalDate date : frameDates) {
+            List<GeoEventPoint> dailyPoints = series.getOrDefault(date, List.of());
+            for (int index = 0; index < Math.min(perDateLimit, dailyPoints.size()); index++) {
+                results.add(dailyPoints.get(index));
+            }
+        }
+        results.sort(Comparator.comparing(GeoEventPoint::eventDate).reversed()
+                .thenComparing(GeoEventPoint::globalEventId, Comparator.reverseOrder()));
+        return results.size() <= effectiveLimit ? results : new ArrayList<>(results.subList(0, effectiveLimit));
     }
 
     private Parent createMapPage() {
@@ -2454,6 +2677,10 @@ public class MainView {
             draw();
         }
 
+        List<GeoEventPoint> pointsSnapshot() {
+            return List.copyOf(points);
+        }
+
         void setLayerState(boolean showCooperation, boolean showConflict, boolean showOther,
                            boolean showRisk, boolean showHeat) {
             this.showCooperation = showCooperation;
@@ -2961,6 +3188,12 @@ public class MainView {
             List<EventQueryResult> events,
             List<EventSubtypeStat> cooperationSubtypes,
             List<EventSubtypeStat> conflictSubtypes
+    ) {
+    }
+
+    private record MapSeriesLoadResult(
+            List<LocalDate> availableDates,
+            Map<LocalDate, List<GeoEventPoint>> series
     ) {
     }
 }
