@@ -261,13 +261,18 @@ public class MainView {
             }
         });
         modules.getSelectionModel().selectFirst();
-        VBox.setVgrow(modules, Priority.ALWAYS);
+        modules.setFixedCellSize(40);
+        modules.setPrefHeight(pages.size() * modules.getFixedCellSize() + 2);
+        modules.setMaxHeight(Region.USE_PREF_SIZE);
+
+        Region sidebarSpacer = new Region();
+        VBox.setVgrow(sidebarSpacer, Priority.ALWAYS);
 
         Label hint = new Label("分析流程：事件检索、双边关系识别、合作态势评估、风险研判、空间可视化与结果导出。");
         hint.getStyleClass().add("sidebar-hint");
         hint.setWrapText(true);
 
-        sidebar.getChildren().addAll(sectionTitle, modules, hint);
+        sidebar.getChildren().addAll(sectionTitle, modules, sidebarSpacer, hint);
         return sidebar;
     }
 

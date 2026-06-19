@@ -62,6 +62,15 @@
     -fx-border-width: 0;
 }
 
+.navigation-list .scroll-bar:vertical,
+.navigation-list .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-max-width: 0;
+    -fx-max-height: 0;
+}
+
 .navigation-list .list-cell {
     -fx-padding: 10 12 10 12;
     -fx-background-color: transparent;
@@ -72,6 +81,11 @@
 
 .navigation-list .list-cell:hover {
     -fx-background-color: #edf3f8;
+}
+
+.navigation-list .list-cell:empty,
+.navigation-list .list-cell:empty:hover {
+    -fx-background-color: transparent;
 }
 
 .navigation-list .list-cell:selected {
