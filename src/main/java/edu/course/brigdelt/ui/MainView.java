@@ -133,7 +133,7 @@ public class MainView {
         Label title = new Label("一带一路沿线国家合作态势分析系统");
         title.getStyleClass().add("app-title");
 
-        Label subtitle = new Label("v1.0 答辩演示版 · JavaFX + Maven + SQLite");
+        Label subtitle = new Label("v1.0 数据分析版 · GDELT 事件数据 · 本地化分析");
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -242,8 +242,8 @@ public class MainView {
                 new PageSpec("区域分析", "按子区域汇总合作、冲突、语调、关注度和风险指标，支撑区域对比展示。"),
                 new PageSpec("国家聚类", "基于合作指数、风险指数、冲突占比和语调特征进行四类 K-Means 聚类。"),
                 new PageSpec("专题地图", "基于 ActionGeo 经纬度展示事件空间分布和地理事件明细。"),
-                new PageSpec("结果导出", "生成汇总报告、合作排名 CSV 和风险排名 CSV，服务答辩材料整理。"),
-                new PageSpec("数据维护", "用于补充导入 GDELT CSV/TSV/ZIP 文件，正常答辩展示优先使用已导入数据库和分析页面。")
+                new PageSpec("结果导出", "生成系统分析报告、合作排名 CSV 和风险排名 CSV，便于结果归档和复核。"),
+                new PageSpec("数据维护", "用于补充导入 GDELT CSV/TSV/ZIP 文件，支持后续查询、统计分析和数据更新。")
         );
 
         ListView<PageSpec> modules = new ListView<>(FXCollections.observableArrayList(pages));
@@ -263,7 +263,7 @@ public class MainView {
         modules.getSelectionModel().selectFirst();
         VBox.setVgrow(modules, Priority.ALWAYS);
 
-        Label hint = new Label("核心分析链路：查询、双边关系、合作态势、风险评估、专题地图、结果导出。");
+        Label hint = new Label("分析流程：事件检索、双边关系识别、合作态势评估、风险研判、空间可视化与结果导出。");
         hint.getStyleClass().add("sidebar-hint");
         hint.setWrapText(true);
 
@@ -529,7 +529,7 @@ public class MainView {
         return "合作指数最高国家为 " + top.countryCode()
                 + "，指数 " + "%.1f".formatted(top.cooperationIndex())
                 + "。当前排名国家合计合作事件 " + totalCooperation
-                + " 条，可在答辩中用于说明合作热点国家和合作分布差异。";
+                + " 条，可用于识别合作热点国家和合作分布差异。";
     }
 
     private String buildRiskInsight(List<RiskAssessment> risks) {
@@ -575,7 +575,7 @@ public class MainView {
                 + " 个，稳定合作 " + stable
                 + " 个，存在风险 " + risky
                 + " 个，高度紧张 " + tense
-                + " 个。该结果可作为国家分层管理和风险预警的答辩亮点。";
+                + " 个。该结果可用于识别不同合作类型国家，为分层观察、重点跟踪和风险研判提供参考。";
     }
 
     private String buildMapInsight(List<GeoEventPoint> points) {
@@ -591,7 +591,7 @@ public class MainView {
                 + " 条，冲突点位 " + conflict
                 + " 条。点位中心约为纬度 " + "%.2f".formatted(averageLatitude)
                 + "、经度 " + "%.2f".formatted(averageLongitude)
-                + "，可用于说明事件在沿线区域的空间集聚特征。";
+                + "，反映沿线区域事件点位的空间分布重心与集聚特征。";
     }
 
     private Parent createImportPage(PageSpec page) {
@@ -862,7 +862,7 @@ public class MainView {
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("合作态势研判", insightText);
         VBox formulaPanel = createFormulaPanel("合作指数口径",
-                "合作指数 = 合作事件量 + 正向 Goldstein + 正向媒体语调 + 媒体关注度 - 冲突扣分，归一到 0-100。该口径适合课堂答辩解释“合作热度”和“合作质量”。");
+                "合作指数 = 合作事件量 + 正向 Goldstein + 正向媒体语调 + 媒体关注度 - 冲突扣分，归一到 0-100。该口径用于综合衡量合作活跃度和合作质量。");
 
         TableView<CooperationScore> table = createCooperationTable();
         ObservableList<CooperationScore> items = FXCollections.observableArrayList();
@@ -916,7 +916,7 @@ public class MainView {
     }
 
     private Parent createRiskAssessmentPage() {
-        VBox body = createPageBase("沿线国家风险评估", "按国家聚合冲突事件、冲突占比、Goldstein 和媒体语调，形成便于答辩解释的风险指数。");
+        VBox body = createPageBase("沿线国家风险评估", "按国家聚合冲突事件、冲突占比、Goldstein 和媒体语调，形成可用于风险比较和重点跟踪的风险指数。");
 
         Label statusText = new Label("正在加载风险评估排名...");
         statusText.getStyleClass().add("import-status");
@@ -1173,7 +1173,7 @@ public class MainView {
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("空间分布研判", insightText);
         VBox formulaPanel = createFormulaPanel("交互地图说明",
-                "滚轮缩放，拖拽平移，双击重置视图，点击点位显示事件信息卡片。底图使用离线经纬度网格和重点区域框，事件点按合作、冲突、其他分层绘制，风险热点和热度层可叠加。");
+                "支持滚轮缩放、拖拽平移、双击复位和点位详情查看。地图基于离线经纬度底图展示事件空间位置，并按合作、冲突、其他类型分层渲染，可叠加风险热点与热度分布辅助研判。");
         HBox insightRow = new HBox(14, insightPanel, formulaPanel);
         insightRow.getStyleClass().add("chart-row");
 
@@ -1534,30 +1534,27 @@ public class MainView {
     }
 
     private Parent createExportPage() {
-        VBox body = createPageBase("分析结果导出", "一键生成课堂汇报可引用的汇总报告和国家排名 CSV 文件。");
+        VBox body = createPageBase("分析结果导出", "生成系统分析报告和国家排名数据文件，便于后续归档、复核和二次分析。");
 
         HBox actionRow = new HBox(12);
         actionRow.getStyleClass().add("query-form");
         actionRow.setAlignment(Pos.CENTER_LEFT);
         Button exportButton = new Button("生成导出文件");
         exportButton.getStyleClass().add("primary-button");
-        Label targetText = new Label("输出目录：" + paths.reportDir() + "；" + paths.exportDir());
+        Label targetText = new Label("输出目录：" + paths.rootDir());
         targetText.getStyleClass().add("import-status");
         targetText.setWrapText(true);
         actionRow.getChildren().addAll(exportButton, targetText);
         HBox.setHgrow(targetText, Priority.ALWAYS);
 
-        Label statusText = new Label("点击按钮后生成 TXT 汇总报告、合作排名 CSV 和风险排名 CSV。");
+        Label statusText = new Label("点击按钮后生成 TXT 汇总报告、合作排名 CSV 和风险排名 CSV 文件。");
         statusText.getStyleClass().add("import-status");
         statusText.setWrapText(true);
 
-        Label insightText = new Label("导出内容来自当前 SQLite 数据库，可在 PPT 中引用总体概况、合作热点国家和风险预警国家。");
+        Label insightText = new Label("导出内容基于当前 SQLite 数据库，包含总体概况、合作热点国家和风险预警国家等核心分析结果。");
         insightText.getStyleClass().add("insight-text");
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("导出内容说明", insightText);
-        VBox formulaPanel = createFormulaPanel("文件用途",
-                "TXT 报告适合直接整理到 PPT 备注；CSV 文件适合复制到 Excel 或 WPS 中制作排名表和图表。");
-
         TextArea resultArea = new TextArea("暂无导出结果。");
         resultArea.getStyleClass().add("result-summary");
         resultArea.setEditable(false);
@@ -1591,7 +1588,7 @@ public class MainView {
             thread.start();
         });
 
-        body.getChildren().addAll(actionRow, statusText, new HBox(14, insightPanel, formulaPanel),
+        body.getChildren().addAll(actionRow, statusText, insightPanel,
                 createSectionTitle("导出结果"), resultArea);
         return wrapScrollable(body);
     }
@@ -2631,7 +2628,7 @@ public class MainView {
             case "双边关系" -> new String[]{
                     "默认以 CHN 为国家 A，输入沿线国家代码进行分析。",
                     "展示总事件数、合作/冲突占比、Goldstein、AvgTone 和媒体关注度。",
-                    "提供月度趋势与双边事件明细，支持 PPT 中解释双边关系变化。"
+                    "提供月度趋势与双边事件明细，用于追踪双边关系在不同月份的变化过程。"
             };
             case "合作态势分析" -> new String[]{
                     "按国家聚合合作事件、冲突事件、媒体关注度和关系强度。",
@@ -2651,7 +2648,7 @@ public class MainView {
             case "结果导出" -> new String[]{
                     "一键生成 TXT 汇总报告、合作排名 CSV 和风险排名 CSV。",
                     "显示导出耗时和生成文件路径。",
-                    "导出文件可直接整理进实验报告、PPT 或表格软件。"
+                    "导出文件可用于结果归档、报告整理和表格化分析。"
             };
             default -> new String[]{
                     "页面提供筛选条件和操作按钮。",
