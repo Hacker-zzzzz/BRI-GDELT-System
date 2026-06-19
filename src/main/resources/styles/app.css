@@ -301,8 +301,48 @@
     -fx-background-color: #fbfcfe;
 }
 
+.event-table .table-row-cell.row-cooperation {
+    -fx-background-color: #f0fbf5;
+}
+
+.event-table .table-row-cell.row-conflict {
+    -fx-background-color: #fff2f2;
+}
+
+.event-table .table-row-cell.row-neutral {
+    -fx-background-color: #f5f8fb;
+}
+
+.event-table .table-row-cell.row-hotspot {
+    -fx-background-color: #fff9e8;
+}
+
+.event-table .table-row-cell.row-risk-high {
+    -fx-background-color: #fff0f7;
+}
+
+.event-table .table-row-cell.row-cluster-a {
+    -fx-background-color: #edf9f1;
+}
+
+.event-table .table-row-cell.row-cluster-b {
+    -fx-background-color: #eef7ff;
+}
+
+.event-table .table-row-cell.row-cluster-c {
+    -fx-background-color: #fff7e8;
+}
+
+.event-table .table-row-cell.row-cluster-d {
+    -fx-background-color: #fff0f3;
+}
+
 .event-table .table-row-cell:selected {
     -fx-background-color: #dcebf8;
+    -fx-text-fill: #14324c;
+}
+
+.event-table .table-row-cell:selected .table-cell {
     -fx-text-fill: #14324c;
 }
 

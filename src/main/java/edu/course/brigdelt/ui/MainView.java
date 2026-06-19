@@ -71,6 +71,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
@@ -1948,6 +1949,7 @@ public class MainView {
         table.getColumns().add(valueColumn("Mentions", 90, EventQueryResult::numMentions));
         table.getColumns().add(valueColumn("AvgTone", 85, result -> "%.2f".formatted(result.avgTone())));
         table.getColumns().add(valueColumn("来源文件", 180, EventQueryResult::sourceFile));
+        applyRowStyle(table, result -> eventTypeRowStyle(result.eventType()));
         table.setMinHeight(360);
         return table;
     }
@@ -1963,6 +1965,7 @@ public class MainView {
         table.getColumns().add(valueColumn("冲突", 90, MonthlyTrendPoint::conflictEvents));
         table.getColumns().add(valueColumn("Avg Goldstein", 130, point -> "%.2f".formatted(point.averageGoldstein())));
         table.getColumns().add(valueColumn("Avg Tone", 120, point -> "%.2f".formatted(point.averageAvgTone())));
+        applyRowStyle(table, point -> trendRowStyle(point.cooperationEvents(), point.conflictEvents()));
         table.setMinHeight(180);
         return table;
     }
@@ -1983,6 +1986,7 @@ public class MainView {
         table.getColumns().add(valueColumn("Mentions", 100, CooperationScore::totalMentions));
         table.getColumns().add(valueColumn("合作指数", 110,
                 score -> "%.1f".formatted(score.cooperationIndex())));
+        applyRowStyle(table, score -> score.cooperationIndex() >= 65 ? "row-cooperation" : "row-neutral");
         table.setMinHeight(420);
         return table;
     }
@@ -2001,6 +2005,7 @@ public class MainView {
         table.getColumns().add(valueColumn("本月指数", 100, hotspot -> "%.1f".formatted(hotspot.currentIndex())));
         table.getColumns().add(valueColumn("环比增长", 100, hotspot -> "%.1f".formatted(hotspot.growth())));
         table.getColumns().add(valueColumn("合作增量", 90, CooperationHotspot::cooperationEventIncrease));
+        applyRowStyle(table, hotspot -> "row-hotspot");
         table.setMinHeight(260);
         return table;
     }
@@ -2022,6 +2027,7 @@ public class MainView {
         table.getColumns().add(valueColumn("风险指数", 110,
                 risk -> "%.1f".formatted(risk.riskIndex())));
         table.getColumns().add(valueColumn("风险等级", 100, RiskAssessment::riskLevel));
+        applyRowStyle(table, risk -> riskRowStyle(risk.riskIndex(), risk.riskLevel()));
         table.setMinHeight(420);
         return table;
     }
@@ -2040,6 +2046,7 @@ public class MainView {
         table.getColumns().add(valueColumn("本月指数", 100, hotspot -> "%.1f".formatted(hotspot.currentIndex())));
         table.getColumns().add(valueColumn("环比增长", 100, hotspot -> "%.1f".formatted(hotspot.growth())));
         table.getColumns().add(valueColumn("冲突增量", 90, RiskHotspot::conflictEventIncrease));
+        applyRowStyle(table, hotspot -> "row-risk-high");
         table.setMinHeight(260);
         return table;
     }
@@ -2059,6 +2066,9 @@ public class MainView {
         table.getColumns().add(valueColumn("Mentions", 100, RegionSummary::totalMentions));
         table.getColumns().add(valueColumn("合作指数", 100, summary -> "%.1f".formatted(summary.cooperationIndex())));
         table.getColumns().add(valueColumn("风险指数", 100, summary -> "%.1f".formatted(summary.riskIndex())));
+        applyRowStyle(table, summary -> summary.riskIndex() > summary.cooperationIndex()
+                ? "row-conflict"
+                : "row-cooperation");
         table.setMinHeight(320);
         return table;
     }
@@ -2077,6 +2087,7 @@ public class MainView {
         table.getColumns().add(valueColumn("冲突占比", 100, result -> formatPercent(result.conflictRatio())));
         table.getColumns().add(valueColumn("聚类类别", 130, CountryClusterResult::clusterLabel));
         table.getColumns().add(valueColumn("解释", 260, CountryClusterResult::explanation));
+        applyRowStyle(table, result -> clusterRowStyle(result.clusterLabel()));
         table.setMinHeight(420);
         return table;
     }
@@ -2095,8 +2106,88 @@ public class MainView {
         table.getColumns().add(valueColumn("经度", 90, point -> "%.4f".formatted(point.longitude())));
         table.getColumns().add(valueColumn("Goldstein", 95, point -> "%.2f".formatted(point.goldsteinScale())));
         table.getColumns().add(valueColumn("AvgTone", 90, point -> "%.2f".formatted(point.avgTone())));
+        applyRowStyle(table, point -> eventTypeRowStyle(point.eventType()));
         table.setMinHeight(320);
         return table;
+    }
+
+    private <T> void applyRowStyle(TableView<T> table, Function<T, String> classifier) {
+        table.setRowFactory(view -> new TableRow<>() {
+            @Override
+            protected void updateItem(T item, boolean empty) {
+                super.updateItem(item, empty);
+                getStyleClass().removeAll(rowStyleClasses());
+                if (!empty && item != null) {
+                    String styleClass = classifier.apply(item);
+                    if (styleClass != null && !styleClass.isBlank()) {
+                        getStyleClass().add(styleClass);
+                    }
+                }
+            }
+        });
+    }
+
+    private List<String> rowStyleClasses() {
+        return List.of(
+                "row-cooperation",
+                "row-conflict",
+                "row-neutral",
+                "row-hotspot",
+                "row-risk-high",
+                "row-cluster-a",
+                "row-cluster-b",
+                "row-cluster-c",
+                "row-cluster-d"
+        );
+    }
+
+    private String eventTypeRowStyle(EventType eventType) {
+        if (eventType == EventType.COOPERATION) {
+            return "row-cooperation";
+        }
+        if (eventType == EventType.CONFLICT) {
+            return "row-conflict";
+        }
+        return "row-neutral";
+    }
+
+    private String trendRowStyle(int cooperationEvents, int conflictEvents) {
+        if (conflictEvents > cooperationEvents) {
+            return "row-conflict";
+        }
+        if (cooperationEvents > conflictEvents) {
+            return "row-cooperation";
+        }
+        return "row-neutral";
+    }
+
+    private String riskRowStyle(double riskIndex, String riskLevel) {
+        if (riskIndex >= 70 || "高".equals(riskLevel) || "极高".equals(riskLevel)) {
+            return "row-risk-high";
+        }
+        if (riskIndex >= 45) {
+            return "row-conflict";
+        }
+        return "row-neutral";
+    }
+
+    private String clusterRowStyle(String clusterLabel) {
+        if (clusterLabel == null) {
+            return "row-neutral";
+        }
+        if (clusterLabel.contains("深度")) {
+            return "row-cluster-a";
+        }
+        if (clusterLabel.contains("稳定")) {
+            return "row-cluster-b";
+        }
+        if (clusterLabel.contains("风险")) {
+            return "row-cluster-c";
+        }
+        if (clusterLabel.contains("紧张")) {
+            return "row-cluster-d";
+        }
+        return "row-neutral";
     }
 
     private <T> TableColumn<T, Object> valueColumn(String title, double width, Function<T, Object> mapper) {
