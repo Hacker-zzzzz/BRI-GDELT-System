@@ -1134,7 +1134,7 @@ public class MainView {
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("空间分布研判", insightText);
         VBox formulaPanel = createFormulaPanel("交互地图说明",
-                "滚轮缩放，拖拽平移，双击重置视图。底图使用离线经纬度网格和重点区域框，事件点按合作、冲突、其他分层绘制，风险热点和热度层可叠加。");
+                "滚轮缩放，拖拽平移，双击重置视图，点击点位显示事件信息卡片。底图使用离线经纬度网格和重点区域框，事件点按合作、冲突、其他分层绘制，风险热点和热度层可叠加。");
         HBox insightRow = new HBox(14, insightPanel, formulaPanel);
         insightRow.getStyleClass().add("chart-row");
 
@@ -2351,6 +2351,11 @@ public class MainView {
         private double panY;
         private double dragStartX;
         private double dragStartY;
+        private GeoEventPoint selectedCardPoint;
+        private double cardX;
+        private double cardY;
+        private double cardWidth;
+        private double cardHeight;
         private boolean showCooperation = true;
         private boolean showConflict = true;
         private boolean showOther = true;
@@ -2372,6 +2377,7 @@ public class MainView {
             hoverLabel.getStyleClass().add("map-hover-label");
             hoverLabel.setVisible(false);
             hoverLabel.setManaged(false);
+            hoverLabel.setMouseTransparent(true);
             getChildren().addAll(canvas, hoverLabel);
 
             setOnScroll(event -> {
@@ -2384,6 +2390,7 @@ public class MainView {
                 double mapDeltaY = (event.getY() - centerY - panY) / oldZoom;
                 panX = event.getX() - centerX - mapDeltaX * zoom;
                 panY = event.getY() - centerY - mapDeltaY * zoom;
+                hidePointCard();
                 constrainPan();
                 draw();
                 event.consume();
@@ -2400,34 +2407,32 @@ public class MainView {
                     panY += event.getY() - dragStartY;
                     dragStartX = event.getX();
                     dragStartY = event.getY();
-                    hoverLabel.setVisible(false);
+                    hidePointCard();
                     constrainPan();
                     draw();
                 }
             });
             setOnMouseClicked(event -> {
                 if (event.getClickCount() == 2) {
+                    hidePointCard();
                     resetView();
                     return;
                 }
                 GeoEventPoint hit = findPoint(event.getX(), event.getY());
-                if (hit != null && selectionHandler != null) {
+                if (hit == null) {
+                    hidePointCard();
+                    return;
+                }
+                showPointCard(hit);
+                if (selectionHandler != null) {
                     selectionHandler.accept(hit);
                 }
             });
             setOnMouseMoved(event -> {
-                GeoEventPoint hit = findPoint(event.getX(), event.getY());
-                if (hit == null) {
-                    hoverLabel.setVisible(false);
-                    return;
-                }
-                hoverLabel.setText(formatHoverText(hit));
-                hoverLabel.resize(260, Region.USE_COMPUTED_SIZE);
-                hoverLabel.relocate(Math.min(event.getX() + 14, Math.max(12, canvas.getWidth() - 280)),
-                        Math.max(12, event.getY() - 46));
-                hoverLabel.setVisible(true);
+                setCursor(findPoint(event.getX(), event.getY()) == null
+                        ? javafx.scene.Cursor.DEFAULT
+                        : javafx.scene.Cursor.CROSSHAIR);
             });
-            setOnMouseExited(event -> hoverLabel.setVisible(false));
         }
 
         @Override
@@ -2483,6 +2488,7 @@ public class MainView {
             }
             drawInsideMap(graphics, () -> drawEventPoints(graphics));
             drawMapHud(graphics, width, height);
+            drawPointCardCallout(graphics);
         }
 
         private void drawBaseMap(GraphicsContext graphics, double width, double height) {
@@ -2606,7 +2612,7 @@ public class MainView {
                     double lat = latIndex * 10.0 - 85.0;
                     double intensity = 0.18 + 0.34 * count / max;
                     double radius = (10 + 20 * count / (double) max) * Math.sqrt(zoom);
-                    graphics.setFill(Color.web("#f3a536", intensity));
+                    graphics.setFill(Color.web("#22c7d8", intensity));
                     graphics.fillOval(screenX(lon) - radius, screenY(lat) - radius, radius * 2, radius * 2);
                 }
             }
@@ -2620,8 +2626,8 @@ public class MainView {
                 double x = screenX(point.longitude());
                 double y = screenY(point.latitude());
                 double radius = 7.5 + Math.min(8, Math.abs(Math.min(point.avgTone(), point.goldsteinScale())));
-                graphics.setStroke(Color.web("#d97706", 0.82));
-                graphics.setLineWidth(1.7);
+                graphics.setStroke(Color.web("#ff8bc8", 0.56));
+                graphics.setLineWidth(1.8);
                 graphics.strokeOval(x - radius, y - radius, radius * 2, radius * 2);
             }
         }
@@ -2652,16 +2658,18 @@ public class MainView {
 
         private void drawMapHud(GraphicsContext graphics, double width, double height) {
             graphics.setFill(Color.web("#ffffff", 0.86));
-            graphics.fillRoundRect(14, 14, 210, 96, 8, 8);
+            graphics.fillRoundRect(14, 14, 228, 136, 8, 8);
             graphics.setStroke(Color.web("#d8e0e8"));
-            graphics.strokeRoundRect(14, 14, 210, 96, 8, 8);
+            graphics.strokeRoundRect(14, 14, 228, 136, 8, 8);
             graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
             graphics.setFill(Color.web("#25364a"));
             graphics.setTextAlign(TextAlignment.LEFT);
             graphics.fillText("图例", 28, 36);
             drawLegendItem(graphics, 30, 56, Color.web("#17894f"), "合作事件", "circle");
             drawLegendItem(graphics, 30, 76, Color.web("#c73737"), "冲突事件", "triangle");
-            drawLegendItem(graphics, 30, 96, Color.web("#3e6fa3"), "其他事件 / 风险圈 / 热度层", "square");
+            drawLegendItem(graphics, 30, 96, Color.web("#3e6fa3"), "其他事件", "square");
+            drawLegendItem(graphics, 30, 116, Color.web("#ff8bc8", 0.72), "风险热点圈", "ring");
+            drawLegendItem(graphics, 30, 136, Color.web("#22c7d8"), "热度层", "heat");
 
             graphics.setFill(Color.web("#ffffff", 0.86));
             graphics.fillRoundRect(width - 260, height - 48, 244, 32, 8, 8);
@@ -2681,6 +2689,13 @@ public class MainView {
                 graphics.fillPolygon(new double[]{x + 5, x, x + 10}, new double[]{y - 6, y + 5, y + 5}, 3);
             } else if ("square".equals(shape)) {
                 graphics.fillRect(x, y - 6, 10, 10);
+            } else if ("ring".equals(shape)) {
+                graphics.setStroke(color);
+                graphics.setLineWidth(2);
+                graphics.strokeOval(x, y - 8, 11, 11);
+            } else if ("heat".equals(shape)) {
+                graphics.setFill(Color.web("#22c7d8", 0.42));
+                graphics.fillOval(x - 2, y - 9, 15, 15);
             } else {
                 graphics.fillOval(x, y - 7, 10, 10);
             }
@@ -2695,7 +2710,7 @@ public class MainView {
                 return null;
             }
             GeoEventPoint best = null;
-            double bestDistance = 10.0;
+            double bestDistance = 14.0;
             for (GeoEventPoint point : points) {
                 if (!isVisibleType(point)) {
                     continue;
@@ -2710,13 +2725,88 @@ public class MainView {
         }
 
         private String formatHoverText(GeoEventPoint point) {
-            return point.globalEventId() + "  " + point.eventDate()
-                    + "\n" + point.actor1CountryCode() + " -> " + point.actor2CountryCode()
-                    + "  " + point.eventType()
-                    + "\nLat " + "%.4f".formatted(point.latitude())
-                    + "  Lon " + "%.4f".formatted(point.longitude())
-                    + "  G " + "%.2f".formatted(point.goldsteinScale())
-                    + "  Tone " + "%.2f".formatted(point.avgTone());
+            return "事件 " + point.globalEventId() + "  " + displayValue(point.eventDate())
+                    + "\n参与方 " + displayCountryCode(point.actor1CountryCode())
+                    + " -> " + displayCountryCode(point.actor2CountryCode())
+                    + "  类型 " + displayValue(point.eventType())
+                    + "\n纬度 " + "%.4f".formatted(point.latitude())
+                    + "  经度 " + "%.4f".formatted(point.longitude())
+                    + "\nGoldstein " + "%.2f".formatted(point.goldsteinScale())
+                    + "  AvgTone " + "%.2f".formatted(point.avgTone());
+        }
+
+        private String displayCountryCode(String value) {
+            return displayValue(value, "未知");
+        }
+
+        private String displayValue(Object value) {
+            return displayValue(value, "-");
+        }
+
+        private String displayValue(Object value, String fallback) {
+            if (value == null) {
+                return fallback;
+            }
+            String text = value.toString().trim();
+            return text.isEmpty() || "null".equalsIgnoreCase(text) ? fallback : text;
+        }
+
+        private void drawPointCardCallout(GraphicsContext graphics) {
+            if (selectedCardPoint == null) {
+                return;
+            }
+            double pointX = screenX(selectedCardPoint.longitude());
+            double pointY = screenY(selectedCardPoint.latitude());
+            if (pointX < mapLeft() || pointY < mapTop()
+                    || pointX > mapLeft() + mapWidth() || pointY > mapTop() + mapHeight()) {
+                return;
+            }
+            double endX = pointX < cardX ? cardX : cardX + cardWidth;
+            double endY = clamp(pointY, cardY + 16, cardY + cardHeight - 16);
+            double elbowX = endX + (pointX < cardX ? -28 : 28);
+            graphics.setStroke(Color.web("#111111", 0.92));
+            graphics.setLineWidth(2.2);
+            graphics.strokeLine(pointX, pointY, elbowX, endY);
+            graphics.strokeLine(elbowX, endY, endX, endY);
+            graphics.setFill(Color.web("#111111", 0.92));
+            graphics.fillOval(pointX - 3, pointY - 3, 6, 6);
+
+            graphics.setFill(Color.web("#ffffff", 0.97));
+            graphics.fillRoundRect(cardX, cardY, cardWidth, cardHeight, 6, 6);
+            graphics.setStroke(Color.web("#111111"));
+            graphics.setLineWidth(3.0);
+            graphics.strokeRoundRect(cardX, cardY, cardWidth, cardHeight, 6, 6);
+
+            String[] lines = formatHoverText(selectedCardPoint).split("\\R");
+            graphics.setFill(Color.web("#1f2937"));
+            graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
+            graphics.setTextAlign(TextAlignment.LEFT);
+            graphics.fillText(lines[0], cardX + 14, cardY + 23);
+            graphics.setFont(Font.font("Microsoft YaHei", 12));
+            for (int i = 1; i < lines.length; i++) {
+                graphics.fillText(lines[i], cardX + 14, cardY + 23 + i * 20);
+            }
+        }
+
+        private void showPointCard(GeoEventPoint point) {
+            selectedCardPoint = point;
+            hoverLabel.setVisible(false);
+            cardWidth = 330;
+            cardHeight = 106;
+            double pointX = screenX(point.longitude());
+            double pointY = screenY(point.latitude());
+            double preferredX = pointX + 82;
+            if (preferredX + cardWidth > canvas.getWidth() - 14) {
+                preferredX = pointX - cardWidth - 82;
+            }
+            cardX = clamp(preferredX, 14, Math.max(14, canvas.getWidth() - cardWidth - 14));
+            cardY = clamp(pointY - cardHeight - 36, 14, Math.max(14, canvas.getHeight() - cardHeight - 14));
+            draw();
+        }
+
+        private void hidePointCard() {
+            selectedCardPoint = null;
+            hoverLabel.setVisible(false);
         }
 
         private boolean isVisibleType(GeoEventPoint point) {

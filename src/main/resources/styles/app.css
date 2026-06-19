@@ -380,15 +380,16 @@
 }
 
 .map-hover-label {
-    -fx-padding: 8 10 8 10;
-    -fx-background-color: rgba(255, 255, 255, 0.94);
-    -fx-background-radius: 6;
-    -fx-border-color: #c6d3df;
-    -fx-border-radius: 6;
-    -fx-text-fill: #25364a;
+    -fx-padding: 10 12 10 12;
+    -fx-background-color: rgba(255, 255, 255, 0.96);
+    -fx-background-radius: 4;
+    -fx-border-color: #111111;
+    -fx-border-width: 3;
+    -fx-border-radius: 4;
+    -fx-text-fill: #1f2937;
     -fx-font-family: "Consolas", "Microsoft YaHei", monospace;
     -fx-font-size: 12px;
-    -fx-effect: dropshadow(gaussian, rgba(31, 45, 61, 0.14), 10, 0.2, 0, 3);
+    -fx-effect: dropshadow(gaussian, rgba(31, 45, 61, 0.16), 10, 0.15, 0, 3);
 }
 
 .insight-panel {
