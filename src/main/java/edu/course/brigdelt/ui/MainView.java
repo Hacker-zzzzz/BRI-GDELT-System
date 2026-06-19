@@ -109,6 +109,7 @@ public class MainView {
 
     private final AppPaths paths;
     private final StackPane contentHost = new StackPane();
+    private final Map<String, Parent> pageCache = new LinkedHashMap<>();
 
     public MainView(AppPaths paths) {
         this.paths = paths;
@@ -270,7 +271,12 @@ public class MainView {
     }
 
     private void showPage(PageSpec page) {
-        Parent content = switch (page.title()) {
+        Parent content = pageCache.computeIfAbsent(page.title(), title -> createPageContent(page));
+        contentHost.getChildren().setAll(content);
+    }
+
+    private Parent createPageContent(PageSpec page) {
+        return switch (page.title()) {
             case "首页仪表盘" -> createDashboardPage(page);
             case "数据维护" -> createImportPage(page);
             case "事件查询" -> createEventQueryPage(page);
@@ -283,7 +289,10 @@ public class MainView {
             case "结果导出" -> createExportPage();
             default -> createPlaceholderPage(page);
         };
-        contentHost.getChildren().setAll(content);
+    }
+
+    private void invalidateDataPageCache() {
+        pageCache.keySet().removeIf(title -> !"数据维护".equals(title));
     }
 
     private Parent createDashboardPage(PageSpec page) {
@@ -671,6 +680,7 @@ public class MainView {
 
             importTask.setOnSucceeded(workerEvent -> {
                 ImportResult result = importTask.getValue();
+                invalidateDataPageCache();
                 statusText.setText("导入完成：" + result.displaySummary());
                 resultSummary.setText(formatImportResult(result));
                 errorSamples.setText(formatErrorSamples(result));
