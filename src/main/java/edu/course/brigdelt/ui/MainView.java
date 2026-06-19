@@ -7,6 +7,7 @@ import edu.course.brigdelt.domain.CooperationScore;
 import edu.course.brigdelt.domain.Country;
 import edu.course.brigdelt.domain.CountryClusterResult;
 import edu.course.brigdelt.domain.CountryEventStat;
+import edu.course.brigdelt.domain.CountryMapMetric;
 import edu.course.brigdelt.domain.DashboardSummary;
 import edu.course.brigdelt.domain.EventQueryCriteria;
 import edu.course.brigdelt.domain.EventQueryResult;
@@ -1140,6 +1141,8 @@ public class MainView {
         riskLayer.setSelected(true);
         CheckBox heatLayer = new CheckBox("热度层");
         heatLayer.setSelected(true);
+        CheckBox countryThemeLayer = new CheckBox("国家专题");
+        countryThemeLayer.setSelected(true);
 
         ComboBox<Integer> limitBox = new ComboBox<>(FXCollections.observableArrayList(500, 1000, 2000));
         limitBox.setValue(MapVisualizationService.DEFAULT_POINT_LIMIT);
@@ -1169,7 +1172,7 @@ public class MainView {
         resetButton.setMinWidth(64);
 
         HBox layerFilterRow = new HBox(12,
-                new Label("图层："), cooperationLayer, conflictLayer, otherLayer, riskLayer, heatLayer,
+                new Label("图层："), countryThemeLayer, cooperationLayer, conflictLayer, otherLayer, riskLayer, heatLayer,
                 new Separator(), new Label("点位："), limitBox,
                 new Label("Actor："), countryFilter, searchButton, resetButton);
         layerFilterRow.setAlignment(Pos.CENTER_LEFT);
@@ -1198,16 +1201,17 @@ public class MainView {
             table.getSelectionModel().select(point);
             table.scrollTo(point);
         });
-        mapPane.setLayerState(cooperationLayer.isSelected(), conflictLayer.isSelected(), otherLayer.isSelected(),
-                riskLayer.isSelected(), heatLayer.isSelected());
+        mapPane.setLayerState(countryThemeLayer.isSelected(), cooperationLayer.isSelected(),
+                conflictLayer.isSelected(), otherLayer.isSelected(), riskLayer.isSelected(), heatLayer.isSelected());
         VBox mapPanel = new VBox(mapPane);
         mapPanel.getStyleClass().addAll("chart-panel", "map-chart-panel");
         mapPanel.setMinHeight(560);
         mapPanel.setPrefHeight(600);
         VBox.setVgrow(mapPane, Priority.ALWAYS);
 
-        Runnable refreshLayers = () -> mapPane.setLayerState(cooperationLayer.isSelected(), conflictLayer.isSelected(),
-                otherLayer.isSelected(), riskLayer.isSelected(), heatLayer.isSelected());
+        Runnable refreshLayers = () -> mapPane.setLayerState(countryThemeLayer.isSelected(), cooperationLayer.isSelected(),
+                conflictLayer.isSelected(), otherLayer.isSelected(), riskLayer.isSelected(), heatLayer.isSelected());
+        countryThemeLayer.setOnAction(event -> refreshLayers.run());
         cooperationLayer.setOnAction(event -> refreshLayers.run());
         conflictLayer.setOnAction(event -> refreshLayers.run());
         otherLayer.setOnAction(event -> refreshLayers.run());
@@ -1270,7 +1274,8 @@ public class MainView {
                 protected MapSeriesLoadResult call() {
                     MapVisualizationService service = new MapVisualizationService(new DatabaseManager(paths));
                     Map<LocalDate, List<GeoEventPoint>> series = service.geoEventPointSeries(limit, selectedTypes, countryCode);
-                    return new MapSeriesLoadResult(new ArrayList<>(series.keySet()), series);
+                    List<CountryMapMetric> countryMetrics = service.countryCooperationMetrics();
+                    return new MapSeriesLoadResult(new ArrayList<>(series.keySet()), series, countryMetrics);
                 }
             };
             searchButton.setDisable(true);
@@ -1284,6 +1289,7 @@ public class MainView {
                 availableDates.addAll(result.availableDates());
                 seriesCache.clear();
                 seriesCache.putAll(result.series());
+                mapPane.setCountryMetrics(result.countryMetrics());
                 updatingSlider[0] = true;
                 dateSlider.setMin(0);
                 dateSlider.setMax(Math.max(0, availableDates.size() - 1));
@@ -1388,6 +1394,7 @@ public class MainView {
                 playButton.setText("播放");
             }
             suppressPreload[0] = true;
+            countryThemeLayer.setSelected(true);
             cooperationLayer.setSelected(true);
             conflictLayer.setSelected(true);
             otherLayer.setSelected(true);
@@ -2681,7 +2688,9 @@ public class MainView {
         private final Label hoverLabel = new Label();
         private final Consumer<GeoEventPoint> selectionHandler;
         private final BasemapLayer basemapLayer = BasemapLayer.loadDefault();
+        private final CountryThematicLayer countryThematicLayer = CountryThematicLayer.loadDefault();
         private final List<GeoEventPoint> points = new ArrayList<>();
+        private final List<CountryMapMetric> countryMetrics = new ArrayList<>();
         private double zoom = 1.0;
         private double panX;
         private double panY;
@@ -2692,6 +2701,7 @@ public class MainView {
         private double cardY;
         private double cardWidth;
         private double cardHeight;
+        private boolean showCountryTheme = true;
         private boolean showCooperation = true;
         private boolean showConflict = true;
         private boolean showOther = true;
@@ -2794,8 +2804,17 @@ public class MainView {
             return List.copyOf(points);
         }
 
-        void setLayerState(boolean showCooperation, boolean showConflict, boolean showOther,
+        void setCountryMetrics(List<CountryMapMetric> newMetrics) {
+            countryMetrics.clear();
+            if (newMetrics != null) {
+                countryMetrics.addAll(newMetrics);
+            }
+            draw();
+        }
+
+        void setLayerState(boolean showCountryTheme, boolean showCooperation, boolean showConflict, boolean showOther,
                            boolean showRisk, boolean showHeat) {
+            this.showCountryTheme = showCountryTheme;
             this.showCooperation = showCooperation;
             this.showConflict = showConflict;
             this.showOther = showOther;
@@ -2820,6 +2839,9 @@ public class MainView {
             GraphicsContext graphics = canvas.getGraphicsContext2D();
             graphics.clearRect(0, 0, width, height);
             drawBaseMap(graphics, width, height);
+            if (showCountryTheme) {
+                drawInsideMap(graphics, () -> drawCountryThemeLayer(graphics));
+            }
             if (showHeat) {
                 drawInsideMap(graphics, () -> drawHeatLayer(graphics));
             }
@@ -2829,6 +2851,10 @@ public class MainView {
             drawInsideMap(graphics, () -> drawEventPoints(graphics));
             drawMapHud(graphics, width, height);
             drawPointCardCallout(graphics);
+        }
+
+        private void drawCountryThemeLayer(GraphicsContext graphics) {
+            countryThematicLayer.draw(graphics, countryMetrics, this::screenX, this::screenY);
         }
 
         private void drawBaseMap(GraphicsContext graphics, double width, double height) {
@@ -2998,9 +3024,9 @@ public class MainView {
 
         private void drawMapHud(GraphicsContext graphics, double width, double height) {
             graphics.setFill(Color.web("#ffffff", 0.86));
-            graphics.fillRoundRect(14, 14, 228, 136, 8, 8);
+            graphics.fillRoundRect(14, 14, 228, 176, 8, 8);
             graphics.setStroke(Color.web("#d8e0e8"));
-            graphics.strokeRoundRect(14, 14, 228, 136, 8, 8);
+            graphics.strokeRoundRect(14, 14, 228, 176, 8, 8);
             graphics.setFont(Font.font("Microsoft YaHei", FontWeight.BOLD, 12));
             graphics.setFill(Color.web("#25364a"));
             graphics.setTextAlign(TextAlignment.LEFT);
@@ -3010,6 +3036,8 @@ public class MainView {
             drawLegendItem(graphics, 30, 96, Color.web("#3e6fa3"), "其他事件", "square");
             drawLegendItem(graphics, 30, 116, Color.web("#ff8bc8", 0.72), "风险热点圈", "ring");
             drawLegendItem(graphics, 30, 136, Color.web("#22c7d8"), "热度层", "heat");
+            drawLegendItem(graphics, 30, 156, Color.web("#72c987", 0.68), "国家合作等级", "country");
+            drawLegendItem(graphics, 30, 176, Color.web("#2563eb", 0.42), "合作事件气泡", "bubble");
 
             graphics.setFill(Color.web("#ffffff", 0.86));
             graphics.fillRoundRect(width - 260, height - 48, 244, 32, 8, 8);
@@ -3036,6 +3064,19 @@ public class MainView {
             } else if ("heat".equals(shape)) {
                 graphics.setFill(Color.web("#22c7d8", 0.42));
                 graphics.fillOval(x - 2, y - 9, 15, 15);
+            } else if ("country".equals(shape)) {
+                graphics.setFill(Color.web("#72c987", 0.62));
+                graphics.fillRect(x, y - 8, 5, 12);
+                graphics.setFill(Color.web("#f0d66d", 0.62));
+                graphics.fillRect(x + 5, y - 8, 5, 12);
+                graphics.setFill(Color.web("#ee8378", 0.62));
+                graphics.fillRect(x + 10, y - 8, 5, 12);
+            } else if ("bubble".equals(shape)) {
+                graphics.setFill(Color.web("#2563eb", 0.22));
+                graphics.fillOval(x - 2, y - 10, 16, 16);
+                graphics.setStroke(Color.web("#1d4ed8", 0.58));
+                graphics.setLineWidth(1.1);
+                graphics.strokeOval(x - 2, y - 10, 16, 16);
             } else {
                 graphics.fillOval(x, y - 7, 10, 10);
             }
@@ -3306,7 +3347,8 @@ public class MainView {
 
     private record MapSeriesLoadResult(
             List<LocalDate> availableDates,
-            Map<LocalDate, List<GeoEventPoint>> series
+            Map<LocalDate, List<GeoEventPoint>> series,
+            List<CountryMapMetric> countryMetrics
     ) {
     }
 }
