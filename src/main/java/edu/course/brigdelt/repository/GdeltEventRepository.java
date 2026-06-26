@@ -24,6 +24,7 @@ import java.sql.Statement;
 import java.sql.Types;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -271,7 +272,8 @@ public class GdeltEventRepository {
                     SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
                     SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
                     AVG(goldstein_scale) AS average_goldstein,
-                    AVG(avg_tone) AS average_avg_tone
+                    AVG(avg_tone) AS average_avg_tone,
+                    SUM(num_mentions) AS total_mentions
                 FROM gdelt_events
                 WHERE (actor1_country_code = ? AND actor2_country_code = ?)
                    OR (actor1_country_code = ? AND actor2_country_code = ?)
@@ -284,13 +286,20 @@ public class GdeltEventRepository {
             try (ResultSet resultSet = statement.executeQuery()) {
                 List<MonthlyTrendPoint> results = new ArrayList<>();
                 while (resultSet.next()) {
+                    int cooperationEvents = resultSet.getInt("cooperation_events");
+                    int conflictEvents = resultSet.getInt("conflict_events");
+                    double averageGoldstein = resultSet.getDouble("average_goldstein");
+                    double averageAvgTone = resultSet.getDouble("average_avg_tone");
+                    int totalMentions = resultSet.getInt("total_mentions");
                     results.add(new MonthlyTrendPoint(
                             resultSet.getString("month"),
                             resultSet.getInt("total_events"),
-                            resultSet.getInt("cooperation_events"),
-                            resultSet.getInt("conflict_events"),
-                            resultSet.getDouble("average_goldstein"),
-                            resultSet.getDouble("average_avg_tone")
+                            cooperationEvents,
+                            conflictEvents,
+                            averageGoldstein,
+                            averageAvgTone,
+                            cooperationIndex(cooperationEvents, conflictEvents, averageGoldstein,
+                                    averageAvgTone, totalMentions)
                     ));
                 }
                 return results;
@@ -373,7 +382,8 @@ public class GdeltEventRepository {
                     SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
                     SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
                     AVG(goldstein_scale) AS average_goldstein,
-                    AVG(avg_tone) AS average_avg_tone
+                    AVG(avg_tone) AS average_avg_tone,
+                    SUM(num_mentions) AS total_mentions
                 FROM gdelt_events
                 GROUP BY substr(event_date, 1, 7)
                 ORDER BY month
@@ -383,13 +393,20 @@ public class GdeltEventRepository {
              ResultSet resultSet = statement.executeQuery()) {
             List<MonthlyTrendPoint> results = new ArrayList<>();
             while (resultSet.next()) {
+                int cooperationEvents = resultSet.getInt("cooperation_events");
+                int conflictEvents = resultSet.getInt("conflict_events");
+                double averageGoldstein = resultSet.getDouble("average_goldstein");
+                double averageAvgTone = resultSet.getDouble("average_avg_tone");
+                int totalMentions = resultSet.getInt("total_mentions");
                 results.add(new MonthlyTrendPoint(
                         resultSet.getString("month"),
                         resultSet.getInt("total_events"),
-                        resultSet.getInt("cooperation_events"),
-                        resultSet.getInt("conflict_events"),
-                        resultSet.getDouble("average_goldstein"),
-                        resultSet.getDouble("average_avg_tone")
+                        cooperationEvents,
+                        conflictEvents,
+                        averageGoldstein,
+                        averageAvgTone,
+                        cooperationIndex(cooperationEvents, conflictEvents, averageGoldstein,
+                                averageAvgTone, totalMentions)
                 ));
             }
             return results;
@@ -406,7 +423,8 @@ public class GdeltEventRepository {
                     SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
                     SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
                     AVG(goldstein_scale) AS average_goldstein,
-                    AVG(avg_tone) AS average_avg_tone
+                    AVG(avg_tone) AS average_avg_tone,
+                    SUM(num_mentions) AS total_mentions
                 FROM gdelt_events
                 WHERE source_file IS NOT NULL
                   AND length(source_file) >= 8
@@ -419,13 +437,20 @@ public class GdeltEventRepository {
              ResultSet resultSet = statement.executeQuery()) {
             List<MonthlyTrendPoint> results = new ArrayList<>();
             while (resultSet.next()) {
+                int cooperationEvents = resultSet.getInt("cooperation_events");
+                int conflictEvents = resultSet.getInt("conflict_events");
+                double averageGoldstein = resultSet.getDouble("average_goldstein");
+                double averageAvgTone = resultSet.getDouble("average_avg_tone");
+                int totalMentions = resultSet.getInt("total_mentions");
                 results.add(new MonthlyTrendPoint(
                         resultSet.getString("day"),
                         resultSet.getInt("total_events"),
-                        resultSet.getInt("cooperation_events"),
-                        resultSet.getInt("conflict_events"),
-                        resultSet.getDouble("average_goldstein"),
-                        resultSet.getDouble("average_avg_tone")
+                        cooperationEvents,
+                        conflictEvents,
+                        averageGoldstein,
+                        averageAvgTone,
+                        cooperationIndex(cooperationEvents, conflictEvents, averageGoldstein,
+                                averageAvgTone, totalMentions)
                 ));
             }
             return results;
@@ -447,6 +472,8 @@ public class GdeltEventRepository {
                 )
                 SELECT
                     c.cameo_code AS country_code,
+                    c.name_cn AS country_name,
+                    c.region AS region,
                     COUNT(*) AS total_events,
                     SUM(CASE WHEN event_type = 'COOPERATION' THEN 1 ELSE 0 END) AS cooperation_events,
                     SUM(CASE WHEN event_type = 'CONFLICT' THEN 1 ELSE 0 END) AS conflict_events,
@@ -455,34 +482,52 @@ public class GdeltEventRepository {
                     SUM(num_mentions) AS total_mentions
                 FROM country_events
                 JOIN countries c ON c.cameo_code = country_events.country_code AND c.is_bri_country = 1
-                GROUP BY c.cameo_code
-                ORDER BY cooperation_events DESC, total_events DESC, country_code
-                LIMIT ?
+                GROUP BY c.cameo_code, c.name_cn, c.region
                 """;
         try (Connection connection = databaseManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, limit <= 0 ? 20 : limit);
             try (ResultSet resultSet = statement.executeQuery()) {
-                List<CooperationScore> results = new ArrayList<>();
+                List<CountryCooperationAggregate> aggregates = new ArrayList<>();
                 while (resultSet.next()) {
-                    int cooperationEvents = resultSet.getInt("cooperation_events");
-                    int conflictEvents = resultSet.getInt("conflict_events");
-                    double averageGoldstein = resultSet.getDouble("average_goldstein");
-                    double averageAvgTone = resultSet.getDouble("average_avg_tone");
-                    int totalMentions = resultSet.getInt("total_mentions");
-                    results.add(new CooperationScore(
+                    aggregates.add(new CountryCooperationAggregate(
                             resultSet.getString("country_code"),
+                            resultSet.getString("country_name"),
+                            resultSet.getString("region"),
                             resultSet.getInt("total_events"),
-                            cooperationEvents,
-                            conflictEvents,
-                            averageGoldstein,
-                            averageAvgTone,
-                            totalMentions,
-                            cooperationIndex(cooperationEvents, conflictEvents, averageGoldstein,
-                                    averageAvgTone, totalMentions)
+                            resultSet.getInt("cooperation_events"),
+                            resultSet.getInt("conflict_events"),
+                            resultSet.getDouble("average_goldstein"),
+                            resultSet.getDouble("average_avg_tone"),
+                            resultSet.getInt("total_mentions")
                     ));
                 }
-                return results;
+                int maxCooperationEvents = aggregates.stream()
+                        .mapToInt(CountryCooperationAggregate::cooperationEvents)
+                        .max()
+                        .orElse(1);
+                int maxMentions = aggregates.stream()
+                        .mapToInt(CountryCooperationAggregate::totalMentions)
+                        .max()
+                        .orElse(1);
+                int safeLimit = limit <= 0 ? 50 : limit;
+                return aggregates.stream()
+                        .map(aggregate -> new CooperationScore(
+                                aggregate.countryCode(),
+                                aggregate.countryName(),
+                                normalizeRegion(aggregate.region()),
+                                aggregate.totalEvents(),
+                                aggregate.cooperationEvents(),
+                                aggregate.conflictEvents(),
+                                aggregate.averageGoldstein(),
+                                aggregate.averageAvgTone(),
+                                aggregate.totalMentions(),
+                                cooperationIndex(aggregate, maxCooperationEvents, maxMentions)
+                        ))
+                        .sorted(Comparator.comparingDouble(CooperationScore::cooperationIndex).reversed()
+                                .thenComparing(Comparator.comparingInt(CooperationScore::cooperationEvents).reversed())
+                                .thenComparing(CooperationScore::countryCode))
+                        .limit(safeLimit)
+                        .toList();
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("合作态势国家排名查询失败。", exception);
@@ -637,33 +682,47 @@ public class GdeltEventRepository {
                 FROM country_events
                 JOIN countries c ON c.cameo_code = country_events.country_code AND c.is_bri_country = 1
                 GROUP BY c.cameo_code
-                ORDER BY conflict_events DESC, total_events DESC, country_code
-                LIMIT ?
                 """;
         try (Connection connection = databaseManager.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, limit <= 0 ? 20 : limit);
             try (ResultSet resultSet = statement.executeQuery()) {
-                List<RiskAssessment> results = new ArrayList<>();
+                List<CountryRiskAggregate> aggregates = new ArrayList<>();
                 while (resultSet.next()) {
                     int totalEvents = resultSet.getInt("total_events");
                     int conflictEvents = resultSet.getInt("conflict_events");
-                    double conflictRatio = ratio(conflictEvents, totalEvents);
-                    double averageGoldstein = resultSet.getDouble("average_goldstein");
-                    double averageAvgTone = resultSet.getDouble("average_avg_tone");
-                    double riskIndex = riskIndex(conflictEvents, conflictRatio, averageGoldstein, averageAvgTone);
-                    results.add(new RiskAssessment(
+                    aggregates.add(new CountryRiskAggregate(
                             resultSet.getString("country_code"),
                             totalEvents,
                             conflictEvents,
-                            conflictRatio,
-                            averageGoldstein,
-                            averageAvgTone,
-                            riskIndex,
-                            riskLevel(riskIndex)
+                            resultSet.getDouble("average_goldstein"),
+                            resultSet.getDouble("average_avg_tone")
                     ));
                 }
-                return results;
+                int maxConflictEvents = aggregates.stream()
+                        .mapToInt(CountryRiskAggregate::conflictEvents)
+                        .max()
+                        .orElse(1);
+                int safeLimit = limit <= 0 ? 50 : limit;
+                return aggregates.stream()
+                        .map(aggregate -> {
+                            double conflictRatio = ratio(aggregate.conflictEvents(), aggregate.totalEvents());
+                            double riskIndex = riskIndex(aggregate, conflictRatio, maxConflictEvents);
+                            return new RiskAssessment(
+                                    aggregate.countryCode(),
+                                    aggregate.totalEvents(),
+                                    aggregate.conflictEvents(),
+                                    conflictRatio,
+                                    aggregate.averageGoldstein(),
+                                    aggregate.averageAvgTone(),
+                                    riskIndex,
+                                    riskLevel(riskIndex)
+                            );
+                        })
+                        .sorted(Comparator.comparingDouble(RiskAssessment::riskIndex).reversed()
+                                .thenComparing(Comparator.comparingInt(RiskAssessment::conflictEvents).reversed())
+                                .thenComparing(RiskAssessment::countryCode))
+                        .limit(safeLimit)
+                        .toList();
             }
         } catch (SQLException exception) {
             throw new IllegalStateException("风险评估国家排名查询失败。", exception);
@@ -1157,20 +1216,70 @@ public class GdeltEventRepository {
         return total <= 0 ? 0 : (double) value / total;
     }
 
+    private double cooperationIndex(CountryCooperationAggregate aggregate, int maxCooperationEvents, int maxMentions) {
+        if (aggregate.totalEvents() <= 0) {
+            return 0;
+        }
+        double cooperationRatio = ratio(aggregate.cooperationEvents(), aggregate.totalEvents());
+        double conflictRatio = ratio(aggregate.conflictEvents(), aggregate.totalEvents());
+        double cooperationShare = maxCooperationEvents <= 0 ? 0
+                : (double) aggregate.cooperationEvents() / maxCooperationEvents;
+        double mentionShare = maxMentions <= 0 ? 0 : (double) aggregate.totalMentions() / maxMentions;
+        double positiveGoldstein = Math.max(aggregate.averageGoldstein(), 0) / 10.0;
+        double positiveTone = Math.max(aggregate.averageAvgTone(), 0) / 100.0;
+        return clamp(100.0 * (
+                cooperationRatio * 0.35
+                        + cooperationShare * 0.30
+                        + positiveGoldstein * 0.15
+                        + positiveTone * 0.08
+                        + mentionShare * 0.12
+                        - conflictRatio * 0.15
+        ));
+    }
+
     private double cooperationIndex(int cooperationEvents, int conflictEvents, double averageGoldstein,
                                     double averageAvgTone, int totalMentions) {
-        return clamp(cooperationEvents * 2.0
-                + Math.max(averageGoldstein, 0) * 6.0
-                + Math.max(averageAvgTone, 0) * 2.0
-                + Math.log1p(Math.max(totalMentions, 0)) * 4.0
-                - conflictEvents * 1.5);
+        int classifiedEvents = cooperationEvents + conflictEvents;
+        if (classifiedEvents <= 0) {
+            return 0;
+        }
+        double cooperationRatio = ratio(cooperationEvents, classifiedEvents);
+        double conflictRatio = ratio(conflictEvents, classifiedEvents);
+        double mentionSignal = Math.min(1.0, Math.log1p(Math.max(totalMentions, 0)) / 12.0);
+        double positiveGoldstein = Math.max(averageGoldstein, 0) / 10.0;
+        double positiveTone = Math.max(averageAvgTone, 0) / 100.0;
+        return clamp(100.0 * (
+                cooperationRatio * 0.55
+                        + positiveGoldstein * 0.20
+                        + positiveTone * 0.10
+                        + mentionSignal * 0.15
+                        - conflictRatio * 0.20
+        ));
+    }
+
+    private double riskIndex(CountryRiskAggregate aggregate, double conflictRatio, int maxConflictEvents) {
+        double conflictShare = maxConflictEvents <= 0 ? 0
+                : (double) aggregate.conflictEvents() / maxConflictEvents;
+        double negativeGoldstein = Math.max(-aggregate.averageGoldstein(), 0) / 10.0;
+        double negativeTone = Math.max(-aggregate.averageAvgTone(), 0) / 100.0;
+        return clamp(100.0 * (
+                conflictRatio * 0.35
+                        + conflictShare * 0.45
+                        + negativeGoldstein * 0.12
+                        + negativeTone * 0.08
+        ));
     }
 
     private double riskIndex(int conflictEvents, double conflictRatio, double averageGoldstein, double averageAvgTone) {
-        return clamp(conflictRatio * 60.0
-                + Math.max(-averageGoldstein, 0) * 6.0
-                + Math.max(-averageAvgTone, 0) * 2.5
-                + conflictEvents * 2.0);
+        double eventSignal = Math.min(1.0, Math.log1p(Math.max(conflictEvents, 0)) / 10.0);
+        double negativeGoldstein = Math.max(-averageGoldstein, 0) / 10.0;
+        double negativeTone = Math.max(-averageAvgTone, 0) / 100.0;
+        return clamp(100.0 * (
+                conflictRatio * 0.45
+                        + eventSignal * 0.35
+                        + negativeGoldstein * 0.12
+                        + negativeTone * 0.08
+        ));
     }
 
     private double clamp(double value) {
@@ -1188,6 +1297,19 @@ public class GdeltEventRepository {
             return "高";
         }
         return "极高";
+    }
+
+    private String normalizeRegion(String region) {
+        return region == null || region.isBlank() ? "其他" : region;
+    }
+
+    private record CountryCooperationAggregate(String countryCode, String countryName, String region,
+                                               int totalEvents, int cooperationEvents, int conflictEvents,
+                                               double averageGoldstein, double averageAvgTone, int totalMentions) {
+    }
+
+    private record CountryRiskAggregate(String countryCode, int totalEvents, int conflictEvents,
+                                        double averageGoldstein, double averageAvgTone) {
     }
 
     private EventQueryResult mapQueryResult(ResultSet resultSet) throws SQLException {

@@ -45,8 +45,8 @@ public class ReportExportService {
             Files.createDirectories(paths.exportDir());
 
             DashboardSummary summary = dashboardService.loadSummary();
-            List<CooperationScore> cooperationScores = analysisService.cooperationRankings(30);
-            List<RiskAssessment> riskAssessments = analysisService.riskRankings(30);
+            List<CooperationScore> cooperationScores = analysisService.cooperationRankings(AnalysisService.DEFAULT_RANK_LIMIT);
+            List<RiskAssessment> riskAssessments = analysisService.riskRankings(AnalysisService.DEFAULT_RANK_LIMIT);
             List<RegionSummary> regionSummaries = analysisService.regionSummaries();
             List<CountryClusterResult> clusterResults = analysisService.countryClusters();
             String suffix = LocalDateTime.now().format(FILE_TIME_FORMAT);

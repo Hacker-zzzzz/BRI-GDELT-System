@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class AnalysisService {
 
-    public static final int DEFAULT_RANK_LIMIT = 20;
+    public static final int DEFAULT_RANK_LIMIT = 50;
     private static final int MAX_CACHE_ENTRIES = 32;
     private static final Map<LimitCacheKey, List<CooperationScore>> COOPERATION_CACHE = lruCache();
     private static final Map<LimitCacheKey, List<CooperationHotspot>> COOPERATION_HOTSPOT_CACHE = lruCache();

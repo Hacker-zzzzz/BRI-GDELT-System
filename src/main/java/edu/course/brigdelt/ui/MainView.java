@@ -109,6 +109,11 @@ import java.util.function.Function;
 @SuppressWarnings("unchecked")
 public class MainView {
 
+    private static final String[] REGION_CHART_COLORS = {
+            "#4f8fcf", "#2fa27f", "#d88c3d", "#b96bc6",
+            "#d65f5f", "#6f8f3d", "#5f75d6", "#c78f4f"
+    };
+
     private final AppPaths paths;
     private final StackPane contentHost = new StackPane();
     private final Map<String, Parent> pageCache = new LinkedHashMap<>();
@@ -471,6 +476,21 @@ public class MainView {
         chart.getData().setAll(series);
     }
 
+    private void updateRelationshipTrendChart(LineChart<String, Number> chart, List<MonthlyTrendPoint> trends) {
+        XYChart.Series<String, Number> cooperation = new XYChart.Series<>();
+        cooperation.setName("合作指数");
+        XYChart.Series<String, Number> goldstein = new XYChart.Series<>();
+        goldstein.setName("Avg Goldstein");
+        XYChart.Series<String, Number> tone = new XYChart.Series<>();
+        tone.setName("Avg Tone");
+        for (MonthlyTrendPoint point : trends) {
+            cooperation.getData().add(new XYChart.Data<>(point.month(), point.cooperationIndex()));
+            goldstein.getData().add(new XYChart.Data<>(point.month(), point.averageGoldstein()));
+            tone.getData().add(new XYChart.Data<>(point.month(), point.averageAvgTone()));
+        }
+        chart.getData().setAll(cooperation, goldstein, tone);
+    }
+
     private void refreshChartsAfterDataLoad(Node... charts) {
         Platform.runLater(() -> {
             for (Node chart : charts) {
@@ -784,6 +804,14 @@ public class MainView {
         ObservableList<MonthlyTrendPoint> trendItems = FXCollections.observableArrayList();
         trendTable.setItems(trendItems);
 
+        CategoryAxis trendMonthAxis = new CategoryAxis();
+        NumberAxis trendValueAxis = new NumberAxis();
+        LineChart<String, Number> relationTrendChart = new LineChart<>(trendMonthAxis, trendValueAxis);
+        relationTrendChart.getStyleClass().add("relationship-trend-chart");
+        relationTrendChart.setTitle("关系趋势折线图");
+        relationTrendChart.setAnimated(false);
+        relationTrendChart.setCreateSymbols(true);
+
         TableView<EventQueryResult> eventTable = createEventTable();
         ObservableList<EventQueryResult> eventItems = FXCollections.observableArrayList();
         eventTable.setItems(eventItems);
@@ -811,6 +839,8 @@ public class MainView {
                         cooperationRatioValue, conflictRatioValue, goldsteinValue, toneValue, mentionsValue);
                 trendItems.setAll(data.trends());
                 eventItems.setAll(data.events());
+                updateRelationshipTrendChart(relationTrendChart, data.trends());
+                refreshChartsAfterDataLoad(relationTrendChart);
                 statusText.setText(data.summary().totalEvents() == 0
                         ? "暂无双边事件数据。"
                         : "分析完成：" + data.summary().countryA() + " - " + data.summary().countryB()
@@ -835,19 +865,21 @@ public class MainView {
             countryBField.getEditor().clear();
             trendItems.clear();
             eventItems.clear();
+            relationTrendChart.getData().clear();
             updateBilateralMetrics(BilateralRelationSummary.empty("CHN", ""), totalValue, cooperationValue,
                     conflictValue, cooperationRatioValue, conflictRatioValue, goldsteinValue, toneValue, mentionsValue);
             statusText.setText("筛选条件已清空。");
         });
 
         body.getChildren().addAll(form, statusText, firstMetricRow, secondMetricRow,
+                createSectionTitle("关系趋势折线图"), wrapChart(relationTrendChart),
                 createSectionTitle("月度趋势预览"), trendTable,
                 createSectionTitle("双边事件明细"), eventTable);
         return wrapScrollable(body);
     }
 
     private Parent createCooperationAnalysisPage() {
-        VBox body = createPageBase("沿线国家合作态势分析", "按国家聚合 GDELT 事件，综合合作事件量、Goldstein、媒体语调和关注度形成合作指数。");
+        VBox body = createPageBase("沿线国家合作态势分析", "按国家聚合 GDELT 事件，综合合作占比、合作相对规模、Goldstein、媒体语调和关注度形成合作指数。");
 
         Label statusText = new Label("正在加载合作态势排名...");
         statusText.getStyleClass().add("import-status");
@@ -871,11 +903,23 @@ public class MainView {
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("合作态势研判", insightText);
         VBox formulaPanel = createFormulaPanel("合作指数口径",
-                "合作指数 = 合作事件量 + 正向 Goldstein + 正向媒体语调 + 媒体关注度 - 冲突扣分，归一到 0-100。该口径用于综合衡量合作活跃度和合作质量。");
+                "合作指数 = 合作占比 + 合作事件相对规模 + 正向 Goldstein + 正向媒体语调 + 媒体关注度 - 冲突占比扣分，归一到 0-100。该口径避免事件量过大时全部顶满分。");
 
         TableView<CooperationScore> table = createCooperationTable();
         ObservableList<CooperationScore> items = FXCollections.observableArrayList();
         table.setItems(items);
+
+        BarChart<String, Number> rankingChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
+        rankingChart.getStyleClass().add("premium-bar-chart");
+        rankingChart.getStyleClass().add("cooperation-ranking-chart");
+        rankingChart.setTitle("合作指数排行榜");
+        rankingChart.setLegendVisible(false);
+        rankingChart.setAnimated(false);
+        HBox rankingLegend = new HBox(10);
+        rankingLegend.setAlignment(Pos.CENTER_LEFT);
+        rankingLegend.getStyleClass().add("chart-legend-row");
+        VBox rankingChartPanel = wrapChart(rankingChart);
+        rankingChartPanel.getChildren().add(rankingLegend);
 
         BarChart<String, Number> hotspotChart = new BarChart<>(new CategoryAxis(), new NumberAxis());
         hotspotChart.getStyleClass().add("premium-bar-chart");
@@ -903,7 +947,9 @@ public class MainView {
             items.setAll(results);
             hotspotItems.setAll(data.hotspots());
             updateCooperationMetrics(results, countryValue, topCountryValue, topIndexValue, totalCooperationValue);
+            updateCooperationRankingChart(rankingChart, rankingLegend, results);
             updateHotspotChart(hotspotChart, data.hotspots());
+            refreshChartsAfterDataLoad(rankingChart, hotspotChart);
             insightText.setText(buildCooperationInsight(results));
             statusText.setText(results.isEmpty()
                     ? "暂无合作态势数据。"
@@ -919,6 +965,7 @@ public class MainView {
         thread.start();
 
         body.getChildren().addAll(statusText, metricRow, new HBox(14, insightPanel, formulaPanel),
+                createSectionTitle("合作指数排行榜"), rankingChartPanel,
                 createSectionTitle("合作指数国家排名"), table,
                 createSectionTitle("合作热点追踪 TOP10"), wrapChart(hotspotChart), hotspotTable);
         VBox.setVgrow(table, Priority.ALWAYS);
@@ -951,7 +998,7 @@ public class MainView {
         insightText.setWrapText(true);
         VBox insightPanel = createInsightPanel("风险态势研判", insightText);
         VBox formulaPanel = createFormulaPanel("风险指数口径",
-                "风险指数 = 冲突占比 + 负向 Goldstein + 负向媒体语调 + 冲突事件量，归一到 0-100，并划分为低、中、高、极高四档。");
+                "风险指数 = 冲突占比 + 冲突事件相对规模 + 负向 Goldstein + 负向媒体语调，归一到 0-100，并划分为低、中、高、极高四档。");
 
         TableView<RiskAssessment> table = createRiskTable();
         ObservableList<RiskAssessment> items = FXCollections.observableArrayList();
@@ -1984,6 +2031,7 @@ public class MainView {
         table.getColumns().add(valueColumn("冲突", 90, MonthlyTrendPoint::conflictEvents));
         table.getColumns().add(valueColumn("Avg Goldstein", 130, point -> "%.2f".formatted(point.averageGoldstein())));
         table.getColumns().add(valueColumn("Avg Tone", 120, point -> "%.2f".formatted(point.averageAvgTone())));
+        table.getColumns().add(valueColumn("合作指数", 110, point -> "%.1f".formatted(point.cooperationIndex())));
         applyRowStyle(table, point -> trendRowStyle(point.cooperationEvents(), point.conflictEvents()));
         table.setMinHeight(180);
         return table;
@@ -1995,6 +2043,8 @@ public class MainView {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         table.setPlaceholder(new Label("暂无合作态势数据。"));
         table.getColumns().add(valueColumn("国家", 90, CooperationScore::countryCode));
+        table.getColumns().add(valueColumn("名称", 120, CooperationScore::countryName));
+        table.getColumns().add(valueColumn("区域", 120, CooperationScore::region));
         table.getColumns().add(valueColumn("总事件", 90, CooperationScore::totalEvents));
         table.getColumns().add(valueColumn("合作", 90, CooperationScore::cooperationEvents));
         table.getColumns().add(valueColumn("冲突", 90, CooperationScore::conflictEvents));
@@ -2313,6 +2363,56 @@ public class MainView {
             risk.getData().add(new XYChart.Data<>(region.region(), region.riskIndex()));
         }
         chart.getData().setAll(cooperation, risk);
+    }
+
+    private void updateCooperationRankingChart(BarChart<String, Number> chart, HBox legend,
+                                               List<CooperationScore> scores) {
+        XYChart.Series<String, Number> series = new XYChart.Series<>();
+        series.setName("合作指数");
+        Map<String, String> colorsByRegion = regionColors(scores);
+        for (CooperationScore score : scores) {
+            XYChart.Data<String, Number> data = new XYChart.Data<>(score.countryCode(), score.cooperationIndex());
+            data.setExtraValue(score.region());
+            series.getData().add(data);
+        }
+        chart.getData().setAll(series);
+        updateRegionLegend(legend, colorsByRegion);
+        Platform.runLater(() -> Platform.runLater(() -> applyRegionBarColors(series, colorsByRegion)));
+    }
+
+    private Map<String, String> regionColors(List<CooperationScore> scores) {
+        Map<String, String> colorsByRegion = new LinkedHashMap<>();
+        for (CooperationScore score : scores) {
+            String region = normalizeRegionLabel(score.region());
+            colorsByRegion.computeIfAbsent(region,
+                    key -> REGION_CHART_COLORS[colorsByRegion.size() % REGION_CHART_COLORS.length]);
+        }
+        return colorsByRegion;
+    }
+
+    private void applyRegionBarColors(XYChart.Series<String, Number> series, Map<String, String> colorsByRegion) {
+        for (XYChart.Data<String, Number> data : series.getData()) {
+            if (data.getNode() == null) {
+                continue;
+            }
+            String region = normalizeRegionLabel(data.getExtraValue() instanceof String value ? value : null);
+            String color = colorsByRegion.getOrDefault(region, REGION_CHART_COLORS[0]);
+            data.getNode().setStyle("-fx-bar-fill: " + color + ";");
+        }
+    }
+
+    private void updateRegionLegend(HBox legend, Map<String, String> colorsByRegion) {
+        legend.getChildren().clear();
+        for (Map.Entry<String, String> entry : colorsByRegion.entrySet()) {
+            Label item = new Label(entry.getKey());
+            item.getStyleClass().add("chart-legend-item");
+            item.setStyle("-fx-background-color: " + entry.getValue() + "; -fx-text-fill: white;");
+            legend.getChildren().add(item);
+        }
+    }
+
+    private String normalizeRegionLabel(String region) {
+        return region == null || region.isBlank() ? "其他" : region;
     }
 
     private void updateSubtypePieChart(PieChart chart, List<EventSubtypeStat> stats) {

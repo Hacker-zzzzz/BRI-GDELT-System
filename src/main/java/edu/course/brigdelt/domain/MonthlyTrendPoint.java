@@ -9,6 +9,7 @@ public record MonthlyTrendPoint(
         int cooperationEvents,
         int conflictEvents,
         double averageGoldstein,
-        double averageAvgTone
+        double averageAvgTone,
+        double cooperationIndex
 ) {
 }
