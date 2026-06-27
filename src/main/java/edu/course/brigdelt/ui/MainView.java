@@ -15,6 +15,7 @@ import edu.course.brigdelt.domain.EventSubtypeStat;
 import edu.course.brigdelt.domain.EventType;
 import edu.course.brigdelt.domain.ExportResult;
 import edu.course.brigdelt.domain.GeoEventPoint;
+import edu.course.brigdelt.domain.ImportBatchStatus;
 import edu.course.brigdelt.domain.ImportResult;
 import edu.course.brigdelt.domain.MonthlyTrendPoint;
 import edu.course.brigdelt.domain.RiskAssessment;
@@ -676,10 +677,13 @@ public class MainView {
                     new FileChooser.ExtensionFilter("TSV 文件", "*.tsv"),
                     new FileChooser.ExtensionFilter("ZIP 压缩包", "*.zip")
             );
-            File selectedFile = fileChooser.showOpenDialog(currentWindow());
-            if (selectedFile != null) {
-                filePathField.setText(selectedFile.toPath().toString());
-                statusText.setText("已选择文件：" + selectedFile.getName());
+            List<File> selectedFiles = fileChooser.showOpenMultipleDialog(currentWindow());
+            if (selectedFiles != null && !selectedFiles.isEmpty()) {
+                filePathField.setText(selectedFiles.stream()
+                        .map(file -> file.toPath().toString())
+                        .reduce((left, right) -> left + "; " + right)
+                        .orElse(""));
+                statusText.setText("Selected " + selectedFiles.size() + " files.");
             }
         });
 
@@ -690,18 +694,31 @@ public class MainView {
                 return;
             }
 
-            Path selectedPath = Path.of(rawPath);
-            Task<ImportResult> importTask = new Task<>() {
+            List<Path> selectedPaths = parseImportPaths(rawPath);
+            if (selectedPaths.isEmpty()) {
+                statusText.setText("No import files selected.");
+                return;
+            }
+            Task<List<ImportResult>> importTask = new Task<>() {
                 @Override
-                protected ImportResult call() {
-                    return new GdeltImportService(new DatabaseManager(paths)).importFile(selectedPath);
+                protected List<ImportResult> call() {
+                    GdeltImportService importService = new GdeltImportService(new DatabaseManager(paths));
+                    List<ImportResult> results = new ArrayList<>();
+                    for (int index = 0; index < selectedPaths.size(); index++) {
+                        Path selectedPath = selectedPaths.get(index);
+                        updateMessage("Importing " + (index + 1) + "/" + selectedPaths.size()
+                                + ": " + selectedPath.getFileName());
+                        results.add(importService.importFile(selectedPath));
+                        updateProgress(index + 1, selectedPaths.size());
+                    }
+                    return results;
                 }
             };
 
             chooseButton.setDisable(true);
             importButton.setDisable(true);
             filePathField.setDisable(true);
-            progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+            progressBar.progressProperty().bind(importTask.progressProperty());
             progressBar.setVisible(true);
             progressBar.setManaged(true);
             statusText.setText("正在后台导入，请稍候...");
@@ -709,11 +726,12 @@ public class MainView {
             errorSamples.setText("暂无错误样例。");
 
             importTask.setOnSucceeded(workerEvent -> {
-                ImportResult result = importTask.getValue();
+                List<ImportResult> results = importTask.getValue();
                 invalidateDataPageCache();
+                ImportResult result = summarizeImportResults(results);
                 statusText.setText("导入完成：" + result.displaySummary());
-                resultSummary.setText(formatImportResult(result));
-                errorSamples.setText(formatErrorSamples(result));
+                resultSummary.setText(formatImportResults(results));
+                errorSamples.setText(formatErrorSamples(results));
                 restoreImportControls(chooseButton, importButton, filePathField, progressBar);
             });
             importTask.setOnFailed(workerEvent -> {
@@ -2675,6 +2693,79 @@ public class MainView {
         return box;
     }
 
+    private List<Path> parseImportPaths(String rawPath) {
+        List<Path> importPaths = new ArrayList<>();
+        for (String part : rawPath.split(";")) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                importPaths.add(Path.of(trimmed));
+            }
+        }
+        return importPaths;
+    }
+
+    private ImportResult summarizeImportResults(List<ImportResult> results) {
+        int totalRows = 0;
+        int successRows = 0;
+        int skippedRows = 0;
+        int insertedRows = 0;
+        long durationMillis = 0;
+        boolean hasFailure = false;
+        boolean hasPartial = false;
+        List<String> samples = new ArrayList<>();
+
+        for (ImportResult result : results) {
+            totalRows += result.totalRows();
+            successRows += result.successRows();
+            skippedRows += result.skippedRows();
+            insertedRows += result.insertedRows();
+            durationMillis += result.durationMillis();
+            hasFailure = hasFailure || result.status() == ImportBatchStatus.FAILED;
+            hasPartial = hasPartial || result.status() == ImportBatchStatus.PARTIAL;
+            if (samples.size() < 10) {
+                int remaining = 10 - samples.size();
+                samples.addAll(result.errorSamples().stream().limit(remaining).toList());
+            }
+        }
+
+        ImportBatchStatus status;
+        if (successRows == 0) {
+            status = ImportBatchStatus.FAILED;
+        } else if (hasFailure || hasPartial || skippedRows > 0) {
+            status = ImportBatchStatus.PARTIAL;
+        } else {
+            status = ImportBatchStatus.SUCCESS;
+        }
+
+        return new ImportResult(
+                results.size() + " files",
+                totalRows,
+                successRows,
+                skippedRows,
+                insertedRows,
+                status,
+                "Batch import completed: " + results.size() + " files.",
+                durationMillis,
+                samples
+        );
+    }
+
+    private String formatImportResults(List<ImportResult> results) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Batch files: ").append(results.size()).append(System.lineSeparator());
+        builder.append(formatImportResult(summarizeImportResults(results))).append(System.lineSeparator());
+        for (int index = 0; index < results.size(); index++) {
+            ImportResult result = results.get(index);
+            builder.append(index + 1)
+                    .append(". ")
+                    .append(result.fileName())
+                    .append(" - ")
+                    .append(result.displaySummary())
+                    .append(System.lineSeparator());
+        }
+        return builder.toString();
+    }
+
     private String formatImportResult(ImportResult result) {
         return """
                 文件名：%s
@@ -2709,6 +2800,26 @@ public class MainView {
         return builder.toString();
     }
 
+    private String formatErrorSamples(List<ImportResult> results) {
+        StringBuilder builder = new StringBuilder();
+        for (ImportResult result : results) {
+            if (result.errorSamples().isEmpty()) {
+                continue;
+            }
+            builder.append(result.fileName()).append(System.lineSeparator());
+            List<String> samples = result.errorSamples();
+            for (int index = 0; index < samples.size(); index++) {
+                builder.append("  ")
+                        .append(index + 1)
+                        .append(". ")
+                        .append(samples.get(index))
+                        .append(System.lineSeparator());
+            }
+            builder.append(System.lineSeparator());
+        }
+        return builder.isEmpty() ? "No error samples." : builder.toString();
+    }
+
     private String formatExportResult(ExportResult result) {
         StringBuilder builder = new StringBuilder();
         builder.append(result.displaySummary()).append(System.lineSeparator()).append(System.lineSeparator());
@@ -2726,6 +2837,7 @@ public class MainView {
         chooseButton.setDisable(false);
         importButton.setDisable(false);
         filePathField.setDisable(false);
+        progressBar.progressProperty().unbind();
         progressBar.setVisible(false);
         progressBar.setManaged(false);
     }
