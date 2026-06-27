@@ -110,8 +110,8 @@ import java.util.function.Function;
 public class MainView {
 
     private static final String[] REGION_CHART_COLORS = {
-            "#4f8fcf", "#2fa27f", "#d88c3d", "#b96bc6",
-            "#d65f5f", "#6f8f3d", "#5f75d6", "#c78f4f"
+            "#4f8fcf", "#4aa68b", "#d79445", "#b77ac7",
+            "#cf6b72", "#7e9a4b", "#6d7ed2", "#c58b63"
     };
 
     private final AppPaths paths;
@@ -480,9 +480,9 @@ public class MainView {
         XYChart.Series<String, Number> cooperation = new XYChart.Series<>();
         cooperation.setName("合作指数");
         XYChart.Series<String, Number> goldstein = new XYChart.Series<>();
-        goldstein.setName("Avg Goldstein");
+        goldstein.setName("平均 Goldstein");
         XYChart.Series<String, Number> tone = new XYChart.Series<>();
-        tone.setName("Avg Tone");
+        tone.setName("平均情感");
         for (MonthlyTrendPoint point : trends) {
             cooperation.getData().add(new XYChart.Data<>(point.month(), point.cooperationIndex()));
             goldstein.getData().add(new XYChart.Data<>(point.month(), point.averageGoldstein()));
@@ -2055,7 +2055,7 @@ public class MainView {
         table.getColumns().add(valueColumn("Mentions", 100, CooperationScore::totalMentions));
         table.getColumns().add(valueColumn("合作指数", 110,
                 score -> "%.1f".formatted(score.cooperationIndex())));
-        applyRowStyle(table, score -> score.cooperationIndex() >= 65 ? "row-cooperation" : "row-neutral");
+        applyRowStyle(table, this::cooperationScoreRowStyle);
         table.setMinHeight(420);
         return table;
     }
@@ -2198,11 +2198,17 @@ public class MainView {
 
     private List<String> rowStyleClasses() {
         return List.of(
+                "row-cooperation-strong",
                 "row-cooperation",
+                "row-cooperation-low",
+                "row-cooperation-watch",
                 "row-conflict",
                 "row-neutral",
                 "row-hotspot",
+                "row-risk-extreme",
                 "row-risk-high",
+                "row-risk-medium",
+                "row-risk-low",
                 "row-cluster-a",
                 "row-cluster-b",
                 "row-cluster-c",
@@ -2221,23 +2227,46 @@ public class MainView {
     }
 
     private String trendRowStyle(int cooperationEvents, int conflictEvents) {
-        if (conflictEvents > cooperationEvents) {
+        int total = cooperationEvents + conflictEvents;
+        if (total <= 0) {
+            return "row-neutral";
+        }
+        double cooperationShare = (double) cooperationEvents / total;
+        double conflictShare = (double) conflictEvents / total;
+        if (conflictShare >= 0.55) {
             return "row-conflict";
         }
-        if (cooperationEvents > conflictEvents) {
+        if (cooperationShare >= 0.55) {
             return "row-cooperation";
         }
         return "row-neutral";
     }
 
+    private String cooperationScoreRowStyle(CooperationScore score) {
+        double index = score.cooperationIndex();
+        if (index >= 45) {
+            return "row-cooperation-strong";
+        }
+        if (index >= 30) {
+            return "row-cooperation";
+        }
+        if (index >= 15) {
+            return "row-cooperation-low";
+        }
+        return "row-cooperation-watch";
+    }
+
     private String riskRowStyle(double riskIndex, String riskLevel) {
-        if (riskIndex >= 70 || "高".equals(riskLevel) || "极高".equals(riskLevel)) {
+        if (riskIndex >= 75 || "极高".equals(riskLevel)) {
+            return "row-risk-extreme";
+        }
+        if (riskIndex >= 50 || "高".equals(riskLevel)) {
             return "row-risk-high";
         }
-        if (riskIndex >= 45) {
-            return "row-conflict";
+        if (riskIndex >= 25 || "中".equals(riskLevel)) {
+            return "row-risk-medium";
         }
-        return "row-neutral";
+        return "row-risk-low";
     }
 
     private String clusterRowStyle(String clusterLabel) {
