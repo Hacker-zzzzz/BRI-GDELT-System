@@ -9,7 +9,9 @@ import java.time.format.DateTimeParseException;
 import java.util.Optional;
 
 /**
- * Safe parser for tab-separated GDELT event lines.
+ * GDELT 原始 TSV 行解析器，负责把固定列位置的事件字段转换为系统领域对象。
+ *
+ * <p>解析失败不会直接抛到导入主流程，而是返回错误信息，便于导入服务收集错误样例。</p>
  */
 public final class GdeltLineParser {
     private static final DateTimeFormatter SQL_DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
@@ -17,15 +19,22 @@ public final class GdeltLineParser {
     private GdeltLineParser() {
     }
 
+    /**
+     * 简化解析入口，只关心是否能得到有效事件记录。
+     */
     public static Optional<GdeltEvent> parse(String line, String sourceFile) {
         return parseDetailed(line, sourceFile).event();
     }
 
+    /**
+     * 详细解析入口，保留失败原因，供导入统计和错误样例展示使用。
+     */
     public static ParseResult parseDetailed(String line, String sourceFile) {
         if (line == null || line.isBlank()) {
             return ParseResult.failure("行内容为空");
         }
 
+        // GDELT Export CSV 实际为 Tab 分隔，-1 保留末尾空列，避免字段位置整体偏移。
         String[] fields = line.split("\t", -1);
         if (fields.length < GdeltFieldMapper.MIN_REQUIRED_FIELD_COUNT) {
             return ParseResult.failure("字段数量不足：期望至少 %d 列，实际 %d 列"
@@ -33,6 +42,7 @@ public final class GdeltLineParser {
         }
 
         try {
+            // 只抽取课程分析需要的核心列：主体国家、CAMEO 编码、强度、情绪和地理坐标。
             long globalEventId = parseLong(fields, GdeltFieldMapper.GLOBAL_EVENT_ID_INDEX, "GlobalEventID");
             LocalDate eventDate = parseSqlDate(fields, GdeltFieldMapper.SQL_DATE_INDEX, "SQLDATE");
             String actor1CountryCode = trimToNull(fields[GdeltFieldMapper.ACTOR1_COUNTRY_CODE_INDEX]);
@@ -68,6 +78,9 @@ public final class GdeltLineParser {
         }
     }
 
+    /**
+     * 解析必填长整数字段，错误信息带字段名，便于定位原始数据问题。
+     */
     private static long parseLong(String[] fields, int index, String fieldName) {
         String value = trimToEmpty(fields[index]);
         if (value.isEmpty()) {
@@ -80,6 +93,9 @@ public final class GdeltLineParser {
         }
     }
 
+    /**
+     * 解析必填整数字段，例如 NumMentions。
+     */
     private static int parseInt(String[] fields, int index, String fieldName) {
         String value = trimToEmpty(fields[index]);
         if (value.isEmpty()) {
@@ -92,6 +108,9 @@ public final class GdeltLineParser {
         }
     }
 
+    /**
+     * 解析必填小数字段，例如 GoldsteinScale 和 AvgTone。
+     */
     private static double parseDouble(String[] fields, int index, String fieldName) {
         String value = trimToEmpty(fields[index]);
         if (value.isEmpty()) {
@@ -104,6 +123,9 @@ public final class GdeltLineParser {
         }
     }
 
+    /**
+     * 解析可为空的经纬度字段；缺失坐标不影响事件入库，只影响地图展示。
+     */
     private static Double parseNullableDouble(String[] fields, int index, String fieldName) {
         String value = trimToEmpty(fields[index]);
         if (value.isEmpty()) {
@@ -116,6 +138,9 @@ public final class GdeltLineParser {
         }
     }
 
+    /**
+     * 解析 GDELT SQLDATE，原始格式为 yyyyMMdd。
+     */
     private static LocalDate parseSqlDate(String[] fields, int index, String fieldName) {
         String value = trimToEmpty(fields[index]);
         if (value.isEmpty()) {
@@ -128,6 +153,9 @@ public final class GdeltLineParser {
         }
     }
 
+    /**
+     * 清理 BOM 和首尾空白，减少原始文件编码差异带来的解析失败。
+     */
     private static String trimToEmpty(String value) {
         if (value == null) {
             return "";
@@ -140,6 +168,9 @@ public final class GdeltLineParser {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * 单行解析结果，成功时携带事件对象，失败时携带可展示的错误摘要。
+     */
     public record ParseResult(Optional<GdeltEvent> event, String errorMessage) {
         public ParseResult {
             event = event == null ? Optional.empty() : event;

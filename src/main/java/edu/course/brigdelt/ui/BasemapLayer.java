@@ -15,6 +15,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleUnaryOperator;
 
+/**
+ * JavaFX 地图底图图层，负责加载低精度世界陆地轮廓并绘制基础地理参照。
+ *
+ * <p>底图数据来自 classpath 下的 TSV 资源；资源缺失或解析失败时使用内置简化轮廓，
+ * 保证交互地图页面仍然可用。</p>
+ */
 final class BasemapLayer {
 
     private static final String BASEMAP_RESOURCE = "/map/world-land-lowres.tsv";
@@ -27,6 +33,9 @@ final class BasemapLayer {
         this.labels = List.copyOf(labels);
     }
 
+    /**
+     * 加载默认世界底图。这里做容错处理，避免地图资源文件损坏时影响主界面启动。
+     */
     static BasemapLayer loadDefault() {
         try (InputStream inputStream = BasemapLayer.class.getResourceAsStream(BASEMAP_RESOURCE)) {
             if (inputStream == null) {
@@ -38,6 +47,9 @@ final class BasemapLayer {
         }
     }
 
+    /**
+     * 将经纬度轮廓投影到 Canvas 坐标系，绘制陆地区块和洲际文字标签。
+     */
     void draw(GraphicsContext graphics, DoubleUnaryOperator screenX, DoubleUnaryOperator screenY) {
         graphics.setFill(Color.web("#dfeadf", 0.95));
         graphics.setStroke(Color.web("#adc4ad", 0.96));
@@ -54,6 +66,9 @@ final class BasemapLayer {
         }
     }
 
+    /**
+     * 解析底图 TSV：LAND 行表示多边形，LABEL 行表示地图文字标注。
+     */
     private static BasemapLayer parse(InputStream inputStream) throws IOException {
         List<Polygon> polygons = new ArrayList<>();
         List<MapLabel> labels = new ArrayList<>();
@@ -68,9 +83,11 @@ final class BasemapLayer {
                 if (parts.length < 2) {
                     continue;
                 }
+                // LABEL 使用中心经纬度定位，主要用于增强地图识别度。
                 if ("LABEL".equals(parts[0]) && parts.length >= 4) {
                     labels.add(new MapLabel(parts[1], parseDouble(parts[2]), parseDouble(parts[3])));
                 } else if ("LAND".equals(parts[0]) && parts.length >= 3) {
+                    // LAND 的点串格式为 lon,lat lon,lat，用于绘制封闭陆地轮廓。
                     polygons.add(new Polygon(parts[1], parsePoints(parts[2])));
                 }
             }
@@ -81,6 +98,9 @@ final class BasemapLayer {
         return new BasemapLayer(polygons, labels);
     }
 
+    /**
+     * 将资源文件中的经纬度点串转换为地图多边形点集合。
+     */
     private static List<MapPoint> parsePoints(String rawPoints) {
         List<MapPoint> points = new ArrayList<>();
         for (String rawPoint : rawPoints.split("\\s+")) {
@@ -97,6 +117,9 @@ final class BasemapLayer {
         return Double.parseDouble(value.trim());
     }
 
+    /**
+     * 绘制单个陆地多边形；点数不足时跳过，避免 Canvas API 抛出无效图形。
+     */
     private static void drawPolygon(GraphicsContext graphics, Polygon polygon,
                                     DoubleUnaryOperator screenX, DoubleUnaryOperator screenY) {
         List<MapPoint> points = polygon.points();
@@ -114,6 +137,9 @@ final class BasemapLayer {
         graphics.strokePolygon(xPoints, yPoints, points.size());
     }
 
+    /**
+     * 内置简化世界轮廓，用作资源加载失败时的降级方案。
+     */
     private static BasemapLayer fallback() {
         List<Polygon> fallbackPolygons = List.of(
                 polygon("north_america", "-168,55 -150,70 -125,72 -105,62 -82,58 -62,50 -55,36 -74,18 -96,15 -116,26 -130,45 -150,50"),

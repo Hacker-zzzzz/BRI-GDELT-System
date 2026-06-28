@@ -20,10 +20,17 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 分析服务层，基于 repository 聚合结果组织高层业务分析。
+ *
+ * <p>合作排名、风险排名、区域对比和国家聚类都在这里形成面向课堂展示的结果，
+ * UI 层只消费最终结论，不需要了解 SQL 细节或指标计算过程。</p>
+ */
 public class AnalysisService {
 
     public static final int DEFAULT_RANK_LIMIT = 50;
     private static final int MAX_CACHE_ENTRIES = 32;
+    // 分析页面会反复切换，缓存按“数据版本 + limit”保存结果，减少重复聚合查询。
     private static final Map<LimitCacheKey, List<CooperationScore>> COOPERATION_CACHE = lruCache();
     private static final Map<LimitCacheKey, List<CooperationHotspot>> COOPERATION_HOTSPOT_CACHE = lruCache();
     private static final Map<LimitCacheKey, List<RiskAssessment>> RISK_CACHE = lruCache();
@@ -42,7 +49,7 @@ public class AnalysisService {
     }
 
     /**
-     * Ranks configured BRI countries by a classroom-friendly cooperation index.
+     * 按课程展示型合作指数对一带一路国家排序。
      */
     public List<CooperationScore> cooperationRankings(int limit) {
         int safeLimit = effectiveLimit(limit);
@@ -62,6 +69,9 @@ public class AnalysisService {
         return results;
     }
 
+    /**
+     * 追踪合作升温国家，优先展示最近月份合作指数或合作事件数上升的对象。
+     */
     public List<CooperationHotspot> cooperationHotspots(int limit) {
         int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
         LimitCacheKey key = new LimitCacheKey(cacheVersion(), safeLimit);
@@ -97,7 +107,7 @@ public class AnalysisService {
     }
 
     /**
-     * Ranks configured BRI countries by conflict ratio, negative tone and negative Goldstein signals.
+     * 按冲突占比、负向语调和负向 Goldstein 等信号评估国家风险。
      */
     public List<RiskAssessment> riskRankings(int limit) {
         int safeLimit = effectiveLimit(limit);
@@ -117,6 +127,9 @@ public class AnalysisService {
         return results;
     }
 
+    /**
+     * 追踪风险升温国家，优先展示最近月份风险指数或冲突事件数上升的对象。
+     */
     public List<RiskHotspot> riskHotspots(int limit) {
         int safeLimit = limit <= 0 ? 10 : Math.min(limit, 50);
         LimitCacheKey key = new LimitCacheKey(cacheVersion(), safeLimit);
@@ -150,7 +163,7 @@ public class AnalysisService {
     }
 
     /**
-     * Aggregates configured BRI countries by sub-region for regional comparison and export.
+     * 按子区域汇总沿线国家指标，用于区域对比图表和导出结果。
      */
     public List<RegionSummary> regionSummaries() {
         CacheVersion key = cacheVersion();
@@ -168,7 +181,10 @@ public class AnalysisService {
     }
 
     /**
-     * Runs a deterministic lightweight K-Means clustering over country-level cooperation/risk features.
+     * 对国家级合作/风险特征运行轻量 K-Means 聚类。
+     *
+     * <p>聚类结果用于给答辩提供“国家类型划分”视角，不追求复杂机器学习模型，
+     * 而是强调可解释、可复现和适合课堂展示。</p>
      */
     public List<CountryClusterResult> countryClusters() {
         CacheVersion key = cacheVersion();
@@ -242,6 +258,8 @@ public class AnalysisService {
     }
 
     private double[] features(CooperationScore score, RiskAssessment risk, int maxEvents) {
+        // K-Means 特征向量：合作指数、风险指数、冲突占比、Goldstein、AvgTone、
+        // 事件规模全部归一化到可比较区间，避免单一量纲主导聚类。
         return new double[]{
                 score.cooperationIndex() / 100.0,
                 risk.riskIndex() / 100.0,
@@ -253,14 +271,17 @@ public class AnalysisService {
     }
 
     private double normalizeGoldstein(double value) {
+        // Goldstein 理论范围约为 -10 到 10，归一化后便于和其他特征一起聚类。
         return Math.max(0, Math.min(1, (value + 10.0) / 20.0));
     }
 
     private double normalizeTone(double value) {
+        // AvgTone 常见范围较宽，这里压缩到 0-1 区间作为相对语调特征。
         return Math.max(0, Math.min(1, (value + 100.0) / 200.0));
     }
 
     private int[] runKMeans(List<ClusterInput> inputs, int k) {
+        // 固定初始中心选择方式和迭代上限，保证演示时聚类结果可复现。
         double[][] centroids = initialCentroids(inputs, k);
         int[] assignments = new int[inputs.size()];
         for (int iteration = 0; iteration < 30; iteration++) {
@@ -274,6 +295,7 @@ public class AnalysisService {
     }
 
     private double[][] initialCentroids(List<ClusterInput> inputs, int k) {
+        // 按“风险 - 合作”排序取初始中心，使聚类覆盖从稳健合作到高风险的梯度。
         List<ClusterInput> ordered = inputs.stream()
                 .sorted(Comparator.comparingDouble(input -> input.risk().riskIndex() - input.score().cooperationIndex()))
                 .toList();
@@ -286,6 +308,7 @@ public class AnalysisService {
     }
 
     private boolean assign(List<ClusterInput> inputs, double[][] centroids, int[] assignments) {
+        // 将每个国家分配给欧氏距离最近的聚类中心。
         boolean changed = false;
         for (int index = 0; index < inputs.size(); index++) {
             int nearest = nearestCentroid(inputs.get(index).features(), centroids);
@@ -320,6 +343,7 @@ public class AnalysisService {
     }
 
     private void recomputeCentroids(List<ClusterInput> inputs, double[][] centroids, int[] assignments, int k) {
+        // 根据本轮分配结果重算中心点；空簇保持原中心，避免演示数据较少时报错。
         double[][] sums = new double[k][centroids[0].length];
         int[] counts = new int[k];
         for (int index = 0; index < inputs.size(); index++) {
@@ -341,6 +365,7 @@ public class AnalysisService {
     }
 
     private Map<Integer, String> clusterLabels(List<ClusterInput> inputs, int[] assignments, int k) {
+        // 根据每个簇的平均合作/风险水平生成中文标签，保证聚类结果可解释。
         List<ClusterProfile> profiles = new ArrayList<>();
         for (int cluster = 0; cluster < k; cluster++) {
             double cooperation = 0;
@@ -369,6 +394,7 @@ public class AnalysisService {
     }
 
     private String clusterExplanation(String label) {
+        // 标签解释用于表格和报告，让非技术评审也能理解聚类含义。
         return switch (label) {
             case "深度合作伙伴" -> "合作指数高、风险信号低，适合作为重点合作案例展示。";
             case "稳定合作" -> "合作基础较稳定，冲突与负面语调处于可控水平。";
@@ -379,10 +405,12 @@ public class AnalysisService {
     }
 
     private CacheVersion cacheVersion() {
+        // 事件数量和导入批次数变化时视为数据版本变化，旧缓存自动失效。
         return new CacheVersion(eventRepository.countEvents(), importBatchRepository.countImportBatches());
     }
 
     private static <K, V> Map<K, V> lruCache() {
+        // 简单 LRU 控制内存占用，避免长时间演示时缓存无限增长。
         return Collections.synchronizedMap(new LinkedHashMap<>(MAX_CACHE_ENTRIES, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {

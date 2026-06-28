@@ -23,6 +23,13 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+/**
+ * 分析结果导出服务。
+ *
+ * <p>一次快照会生成 TXT 摘要报告、合作排名 CSV、风险排名 CSV 和 XLSX 工作簿。
+ * 这些文件用于课程提交、答辩展示和后续复核，导出内容来自 dashboard 与 analysis
+ * 服务，避免在导出层重新计算业务指标。</p>
+ */
 public class ReportExportService {
 
     private static final DateTimeFormatter FILE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
@@ -38,6 +45,9 @@ public class ReportExportService {
         this.analysisService = new AnalysisService(databaseManager);
     }
 
+    /**
+     * 导出一次分析快照，生成报告文本、两个 CSV 排名和一个 XLSX 工作簿。
+     */
     public ExportResult exportSnapshot() {
         Instant start = Instant.now();
         try {
@@ -75,6 +85,9 @@ public class ReportExportService {
         }
     }
 
+    /**
+     * 构造 TXT 摘要报告，保留总体概况、重点研判和指标口径说明。
+     */
     private String buildReport(DashboardSummary summary, List<CooperationScore> cooperationScores,
                                List<RiskAssessment> riskAssessments) {
         String topCooperation = cooperationScores.isEmpty() ? "暂无" : cooperationScores.get(0).countryCode();
@@ -125,8 +138,13 @@ public class ReportExportService {
         );
     }
 
+    /**
+     * 导出合作排名 CSV，字段保持英文便于 Excel、Python 或其他工具二次处理。
+     */
     private String buildCooperationCsv(List<CooperationScore> scores) {
-        StringBuilder builder = new StringBuilder("country,total_events,cooperation_events,conflict_events,average_goldstein,average_avg_tone,total_mentions,cooperation_index\n");
+        StringBuilder builder = new StringBuilder(
+                "country,total_events,cooperation_events,conflict_events,"
+                        + "average_goldstein,average_avg_tone,total_mentions,cooperation_index\n");
         for (CooperationScore score : scores) {
             builder.append(score.countryCode()).append(',')
                     .append(score.totalEvents()).append(',')
@@ -140,8 +158,13 @@ public class ReportExportService {
         return builder.toString();
     }
 
+    /**
+     * 导出风险排名 CSV，保留风险指数和风险等级以便报告引用。
+     */
     private String buildRiskCsv(List<RiskAssessment> risks) {
-        StringBuilder builder = new StringBuilder("country,total_events,conflict_events,conflict_ratio,average_goldstein,average_avg_tone,risk_index,risk_level\n");
+        StringBuilder builder = new StringBuilder(
+                "country,total_events,conflict_events,conflict_ratio,"
+                        + "average_goldstein,average_avg_tone,risk_index,risk_level\n");
         for (RiskAssessment risk : risks) {
             builder.append(risk.countryCode()).append(',')
                     .append(risk.totalEvents()).append(',')
@@ -155,6 +178,9 @@ public class ReportExportService {
         return builder.toString();
     }
 
+    /**
+     * 直接写入最小 XLSX ZIP 结构，避免额外引入大型 Excel 依赖。
+     */
     private void writeWorkbook(Path workbookFile, List<CooperationScore> cooperationScores,
                                List<RiskAssessment> riskAssessments,
                                List<RegionSummary> regionSummaries,
@@ -206,9 +232,13 @@ public class ReportExportService {
         }
     }
 
+    /**
+     * 组装合作排名工作表行数据。
+     */
     private List<List<Object>> cooperationRows(List<CooperationScore> scores) {
         List<List<Object>> rows = new ArrayList<>();
-        rows.add(List.of("country", "total_events", "cooperation_events", "conflict_events", "average_goldstein", "average_avg_tone", "total_mentions", "cooperation_index"));
+        rows.add(List.of("country", "total_events", "cooperation_events", "conflict_events",
+                "average_goldstein", "average_avg_tone", "total_mentions", "cooperation_index"));
         for (CooperationScore score : scores) {
             rows.add(List.of(score.countryCode(), score.totalEvents(), score.cooperationEvents(), score.conflictEvents(),
                     score.averageGoldstein(), score.averageAvgTone(), score.totalMentions(), score.cooperationIndex()));
@@ -216,9 +246,13 @@ public class ReportExportService {
         return rows;
     }
 
+    /**
+     * 组装风险排名工作表行数据。
+     */
     private List<List<Object>> riskRows(List<RiskAssessment> risks) {
         List<List<Object>> rows = new ArrayList<>();
-        rows.add(List.of("country", "total_events", "conflict_events", "conflict_ratio", "average_goldstein", "average_avg_tone", "risk_index", "risk_level"));
+        rows.add(List.of("country", "total_events", "conflict_events", "conflict_ratio",
+                "average_goldstein", "average_avg_tone", "risk_index", "risk_level"));
         for (RiskAssessment risk : risks) {
             rows.add(List.of(risk.countryCode(), risk.totalEvents(), risk.conflictEvents(), risk.conflictRatio(),
                     risk.averageGoldstein(), risk.averageAvgTone(), risk.riskIndex(), risk.riskLevel()));
@@ -226,9 +260,13 @@ public class ReportExportService {
         return rows;
     }
 
+    /**
+     * 组装区域汇总工作表行数据，用于展示区域层面的合作/风险差异。
+     */
     private List<List<Object>> regionRows(List<RegionSummary> regions) {
         List<List<Object>> rows = new ArrayList<>();
-        rows.add(List.of("region", "country_count", "total_events", "cooperation_events", "conflict_events", "average_goldstein", "average_avg_tone", "total_mentions", "cooperation_index", "risk_index"));
+        rows.add(List.of("region", "country_count", "total_events", "cooperation_events", "conflict_events",
+                "average_goldstein", "average_avg_tone", "total_mentions", "cooperation_index", "risk_index"));
         for (RegionSummary region : regions) {
             rows.add(List.of(region.region(), region.countryCount(), region.totalEvents(), region.cooperationEvents(),
                     region.conflictEvents(), region.averageGoldstein(), region.averageAvgTone(), region.totalMentions(),
@@ -237,9 +275,13 @@ public class ReportExportService {
         return rows;
     }
 
+    /**
+     * 组装国家聚类工作表行数据，保留类型标签和解释文本。
+     */
     private List<List<Object>> clusterRows(List<CountryClusterResult> clusters) {
         List<List<Object>> rows = new ArrayList<>();
-        rows.add(List.of("country", "name", "region", "total_events", "cooperation_index", "risk_index", "conflict_ratio", "cluster_label", "explanation"));
+        rows.add(List.of("country", "name", "region", "total_events", "cooperation_index",
+                "risk_index", "conflict_ratio", "cluster_label", "explanation"));
         for (CountryClusterResult cluster : clusters) {
             rows.add(List.of(cluster.countryCode(), cluster.countryName(), cluster.region(), cluster.totalEvents(),
                     cluster.cooperationIndex(), cluster.riskIndex(), cluster.conflictRatio(),
@@ -248,6 +290,9 @@ public class ReportExportService {
         return rows;
     }
 
+    /**
+     * 将二维行数据转换为 XLSX worksheet XML。
+     */
     private String worksheetXml(List<List<Object>> rows) {
         StringBuilder builder = new StringBuilder("""
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -267,6 +312,9 @@ public class ReportExportService {
         return builder.toString();
     }
 
+    /**
+     * 根据值类型写入数字单元格或字符串单元格。
+     */
     private void appendCell(StringBuilder builder, String cellRef, Object value) {
         if (value instanceof Number number) {
             builder.append("      <c r=\"").append(cellRef).append("\"><v>")

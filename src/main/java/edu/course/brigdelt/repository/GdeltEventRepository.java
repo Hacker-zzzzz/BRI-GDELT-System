@@ -32,7 +32,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Persists cleaned GDELT events into SQLite.
+ * GDELT 事件数据仓储类，负责清洗后事件的 SQLite 持久化和统计查询。
+ *
+ * <p>仪表盘、双边关系、合作排名、风险评估、区域汇总和地图页面都依赖这里的
+ * SQL 聚合结果。将聚合计算尽量放在数据库侧完成，可以避免把完整 GDELT 事件表
+ * 一次性加载到内存中，适合课程演示数据量较大的场景。</p>
  */
 public class GdeltEventRepository {
 
@@ -42,6 +46,9 @@ public class GdeltEventRepository {
         this.databaseManager = databaseManager;
     }
 
+    /**
+     * 批量写入清洗后的 GDELT 事件，使用 INSERT OR IGNORE 避免重复事件编号导致导入中断。
+     */
     public int insertIgnoreBatch(List<GdeltEvent> events) {
         if (events == null || events.isEmpty()) {
             return 0;
@@ -116,6 +123,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 按多条件查询事件明细，结果用于“事件查询”页面的表格展示。
+     */
     public List<EventQueryResult> queryEvents(EventQueryCriteria criteria) {
         QueryParts queryParts = buildWhereClause(criteria);
         String sql = """
@@ -142,6 +152,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 统计同一查询条件下的事件总数，用于界面展示命中规模。
+     */
     public int countEvents(EventQueryCriteria criteria) {
         QueryParts queryParts = buildWhereClause(criteria);
         String sql = "SELECT COUNT(*) FROM gdelt_events " + queryParts.whereClause();
@@ -156,6 +169,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 统计某类事件根代码分布，用于合作/冲突子类型饼图。
+     */
     public List<EventSubtypeStat> queryEventSubtypeStats(EventQueryCriteria criteria, EventType eventType) {
         QueryParts queryParts = buildWhereClause(criteria);
         List<Object> parameters = new ArrayList<>(queryParts.parameters());
@@ -194,6 +210,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 汇总两个国家之间的双边关系，兼容 Actor1/Actor2 顺序互换的事件记录。
+     */
     public BilateralRelationSummary summarizeBilateral(String countryA, String countryB) {
         String sql = """
                 SELECT
@@ -238,6 +257,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询双边关系明细事件，用于双边页面下方表格追溯原始事件。
+     */
     public List<EventQueryResult> queryBilateralEvents(String countryA, String countryB, int limit) {
         String sql = """
                 SELECT global_event_id, event_date, actor1_country_code, actor2_country_code,
@@ -264,6 +286,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 按月份汇总双边趋势，支撑双边关系折线图和趋势表。
+     */
     public List<MonthlyTrendPoint> queryBilateralMonthlyTrend(String countryA, String countryB) {
         String sql = """
                 SELECT
@@ -309,6 +334,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 加载首页仪表盘总览指标，包括事件结构、媒体关注度和平均语调。
+     */
     public DashboardSummary loadDashboardSummary(int countryCount, int importBatches) {
         String sql = """
                 SELECT
@@ -343,6 +371,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询事件量最高的国家，用于首页国家热度柱状图。
+     */
     public List<CountryEventStat> queryTopCountriesByEvents(int limit) {
         String sql = """
                 SELECT c.cameo_code AS country_code, COUNT(*) AS event_count
@@ -374,6 +405,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 汇总全局月度趋势，用于观察数据整体时间变化。
+     */
     public List<MonthlyTrendPoint> queryOverallMonthlyTrend() {
         String sql = """
                 SELECT
@@ -415,6 +449,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 汇总全局日度趋势，用于首页更细粒度的导入数据变化展示。
+     */
     public List<MonthlyTrendPoint> queryOverallDailyTrend() {
         String sql = """
                 SELECT
@@ -459,6 +496,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询国家合作指数排名，作为合作态势分析页和导出 CSV 的核心数据。
+     */
     public List<CooperationScore> queryCooperationScores(int limit) {
         String sql = """
                 WITH country_events AS (
@@ -534,6 +574,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询合作热点，比较最近两个月合作指数和合作事件增量的变化。
+     */
     public List<CooperationHotspot> queryCooperationHotspots(int limit) {
         String sql = """
                 WITH available_months AS (
@@ -662,6 +705,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询国家风险评估排名，综合冲突占比、冲突事件量和负向情绪信号。
+     */
     public List<RiskAssessment> queryRiskAssessments(int limit) {
         String sql = """
                 WITH country_events AS (
@@ -729,6 +775,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询风险热点，识别最近月份冲突风险上升较明显的国家。
+     */
     public List<RiskHotspot> queryRiskHotspots(int limit) {
         String sql = """
                 WITH available_months AS (
@@ -855,14 +904,23 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询最近的地理事件点，用于普通专题地图散点展示。
+     */
     public List<GeoEventPoint> queryGeoEventPoints(int limit) {
         return queryGeoEventPoints(limit, Set.of(), "", null, null);
     }
 
+    /**
+     * 按事件类型和国家过滤地理事件点，支持交互式地图筛选。
+     */
     public List<GeoEventPoint> queryGeoEventPoints(int limit, Set<String> eventTypes, String countryCode) {
         return queryGeoEventPoints(limit, eventTypes, countryCode, null, null);
     }
 
+    /**
+     * 查询存在有效经纬度的事件日期，用于地图时间轴和窗口选择。
+     */
     public List<LocalDate> queryGeoEventDates(Set<String> eventTypes, String countryCode) {
         StringBuilder sql = new StringBuilder("""
                 SELECT DISTINCT event_date
@@ -890,6 +948,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 查询指定时间窗口内的地理事件点，地图播放和窗口聚合都复用此方法。
+     */
     public List<GeoEventPoint> queryGeoEventPoints(int limit, Set<String> eventTypes, String countryCode,
                                                    LocalDate startDate, LocalDate endDate) {
         StringBuilder filters = new StringBuilder("""
@@ -938,6 +999,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 按日期预加载地理事件点序列，减少地图时间轴播放时的数据库往返。
+     */
     public Map<LocalDate, List<GeoEventPoint>> queryGeoEventPointSeries(int limit, Set<String> eventTypes,
                                                                         String countryCode) {
         StringBuilder filters = new StringBuilder("""
@@ -983,6 +1047,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 追加地图查询的动态过滤条件，集中处理事件类型、国家和日期窗口。
+     */
     private List<String> appendGeoPointFilters(StringBuilder sql, Set<String> eventTypes, String countryCode,
                                                LocalDate startDate, LocalDate endDate) {
         List<String> parameters = new ArrayList<>();
@@ -1024,6 +1091,9 @@ public class GdeltEventRepository {
         return parameterIndex;
     }
 
+    /**
+     * 将地理事件查询结果映射为地图点对象，隔离 ResultSet 字段读取细节。
+     */
     private GeoEventPoint mapGeoEventPoint(ResultSet resultSet) throws SQLException {
         return new GeoEventPoint(
                 resultSet.getString("global_event_id"),
@@ -1038,6 +1108,9 @@ public class GdeltEventRepository {
         );
     }
 
+    /**
+     * 按区域聚合沿线国家指标，用于区域对比、雷达图和 XLSX 导出。
+     */
     public List<RegionSummary> queryRegionSummaries() {
         String sql = """
                 WITH region_country_events AS (
@@ -1095,6 +1168,9 @@ public class GdeltEventRepository {
         }
     }
 
+    /**
+     * 对区域合作/风险指数做归一化，确保不同区域之间可比较。
+     */
     private List<RegionSummary> normalizeRegionIndexes(List<RegionSummary> summaries) {
         int maxEvents = summaries.stream().mapToInt(RegionSummary::totalEvents).max().orElse(0);
         int maxConflicts = summaries.stream().mapToInt(RegionSummary::conflictEvents).max().orElse(0);
@@ -1117,6 +1193,9 @@ public class GdeltEventRepository {
         return normalized;
     }
 
+    /**
+     * 区域合作指数：综合区域事件规模、合作占比、媒体关注度和正向情绪。
+     */
     private double regionCooperationIndex(RegionSummary summary, int maxEvents, int maxMentions) {
         if (summary.totalEvents() <= 0) {
             return 0;
@@ -1135,6 +1214,9 @@ public class GdeltEventRepository {
         ));
     }
 
+    /**
+     * 区域风险指数：综合区域冲突规模、冲突占比、媒体关注度和负向情绪。
+     */
     private double regionRiskIndex(RegionSummary summary, int maxConflicts, int maxMentions) {
         if (summary.totalEvents() <= 0) {
             return 0;
@@ -1153,6 +1235,9 @@ public class GdeltEventRepository {
         ));
     }
 
+    /**
+     * 根据查询条件动态拼装 WHERE 子句，所有外部输入都通过参数绑定避免 SQL 注入。
+     */
     private QueryParts buildWhereClause(EventQueryCriteria criteria) {
         List<String> clauses = new ArrayList<>();
         List<Object> parameters = new ArrayList<>();
@@ -1220,6 +1305,8 @@ public class GdeltEventRepository {
         if (aggregate.totalEvents() <= 0) {
             return 0;
         }
+        // 合作指数（course-display score）：综合合作占比、合作事件规模、
+        // 正向 Goldstein、正向 AvgTone 和媒体关注度，并扣减冲突暴露。
         double cooperationRatio = ratio(aggregate.cooperationEvents(), aggregate.totalEvents());
         double conflictRatio = ratio(aggregate.conflictEvents(), aggregate.totalEvents());
         double cooperationShare = maxCooperationEvents <= 0 ? 0
@@ -1243,6 +1330,7 @@ public class GdeltEventRepository {
         if (classifiedEvents <= 0) {
             return 0;
         }
+        // 双边/月度场景的合作指数：用于趋势和热点比较，权重更强调合作占比本身。
         double cooperationRatio = ratio(cooperationEvents, classifiedEvents);
         double conflictRatio = ratio(conflictEvents, classifiedEvents);
         double mentionSignal = Math.min(1.0, Math.log1p(Math.max(totalMentions, 0)) / 12.0);
@@ -1258,6 +1346,8 @@ public class GdeltEventRepository {
     }
 
     private double riskIndex(CountryRiskAggregate aggregate, double conflictRatio, int maxConflictEvents) {
+        // 风险指数（risk score）：以冲突占比和冲突事件规模为主，
+        // 负向 Goldstein 与负向 AvgTone 作为补充信号。
         double conflictShare = maxConflictEvents <= 0 ? 0
                 : (double) aggregate.conflictEvents() / maxConflictEvents;
         double negativeGoldstein = Math.max(-aggregate.averageGoldstein(), 0) / 10.0;
@@ -1271,6 +1361,7 @@ public class GdeltEventRepository {
     }
 
     private double riskIndex(int conflictEvents, double conflictRatio, double averageGoldstein, double averageAvgTone) {
+        // 热点/月度风险指数：平衡冲突占比、事件规模和负面情绪信号。
         double eventSignal = Math.min(1.0, Math.log1p(Math.max(conflictEvents, 0)) / 10.0);
         double negativeGoldstein = Math.max(-averageGoldstein, 0) / 10.0;
         double negativeTone = Math.max(-averageAvgTone, 0) / 100.0;

@@ -13,12 +13,18 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Loads country metadata from the classpath configuration.
+ * 国家配置加载服务。
+ *
+ * <p>从 classpath 中读取国家 JSON 配置，解析为 Country 对象后写入数据库。
+ * 当前使用轻量解析逻辑，避免为了固定结构配置额外引入 JSON 依赖。</p>
  */
 public class CountryConfigService {
 
     private static final String COUNTRY_CONFIG_RESOURCE = "/config/countries.json";
 
+    /**
+     * 加载全部国家配置，结果用于启动初始化和导入过滤。
+     */
     public List<Country> loadCountries() {
         String json = readResource();
         String countriesArray = extractArray(json, "countries");
@@ -33,6 +39,9 @@ public class CountryConfigService {
         return List.copyOf(countries);
     }
 
+    /**
+     * 读取内置 JSON 配置文件，统一使用 UTF-8 保证中文国家名不乱码。
+     */
     private String readResource() {
         try (InputStream inputStream = CountryConfigService.class.getResourceAsStream(COUNTRY_CONFIG_RESOURCE)) {
             if (inputStream == null) {
@@ -52,6 +61,9 @@ public class CountryConfigService {
         }
     }
 
+    /**
+     * 从固定结构 JSON 中提取数组字段，并正确跳过字符串中的括号字符。
+     */
     private String extractArray(String json, String fieldName) {
         Matcher matcher = Pattern.compile("\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*\\[").matcher(json);
         if (!matcher.find()) {

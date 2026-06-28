@@ -1,7 +1,7 @@
 package edu.course.brigdelt.domain;
 
 /**
- * Country metadata used to match GDELT CAMEO country codes.
+ * 国家基础配置，用于把 GDELT/CAMEO 国家代码映射到中文名称、区域和地图坐标。
  */
 public record Country(
         String cameoCode,

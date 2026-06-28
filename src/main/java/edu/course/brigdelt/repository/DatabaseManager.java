@@ -9,7 +9,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Owns SQLite connection creation and first-run schema initialization.
+ * SQLite 数据库管理器。
+ *
+ * <p>集中负责连接创建、首次表结构初始化、兼容旧库的补列逻辑和连接级 PRAGMA 设置。</p>
  */
 public class DatabaseManager {
 
@@ -19,10 +21,14 @@ public class DatabaseManager {
         this.paths = paths;
     }
 
+    /**
+     * 初始化应用所需表和索引。方法可重复执行，适合每次启动时做安全检查。
+     */
     public void initializeSchema() {
         try (Connection connection = getConnection();
              Statement statement = connection.createStatement()) {
             statement.executeUpdate("PRAGMA journal_mode=WAL");
+            // 国家表保存 CAMEO/ISO 代码、中文名、英文名、区域和地图中心点。
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS countries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +52,7 @@ public class DatabaseManager {
             addColumnIfMissing(connection, "countries", "is_bri_country", "INTEGER NOT NULL DEFAULT 1");
             addColumnIfMissing(connection, "countries", "is_core_country", "INTEGER NOT NULL DEFAULT 0");
 
+            // 事件表只保存本系统分析需要的 GDELT 核心字段，避免原始宽表过重。
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS gdelt_events (
                         global_event_id TEXT PRIMARY KEY,
@@ -80,6 +87,7 @@ public class DatabaseManager {
             addColumnIfMissing(connection, "gdelt_events", "source_file", "TEXT");
             addColumnIfMissing(connection, "gdelt_events", "created_at", "TEXT DEFAULT CURRENT_TIMESTAMP");
 
+            // 导入批次表用于首页展示导入历史，也用于缓存版本判断。
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS import_batches (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +113,7 @@ public class DatabaseManager {
                         created_at TEXT DEFAULT CURRENT_TIMESTAMP
                     )
                     """);
+            // 关键索引覆盖日期、国家、事件类型和地图查询，提升课堂演示时的响应速度。
             statement.executeUpdate("CREATE UNIQUE INDEX IF NOT EXISTS idx_countries_cameo_code ON countries(cameo_code)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_events_date ON gdelt_events(event_date)");
             statement.executeUpdate("CREATE INDEX IF NOT EXISTS idx_events_actor1 ON gdelt_events(actor1_country_code)");
@@ -157,6 +166,9 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * 创建 SQLite 连接并应用统一 PRAGMA 配置。
+     */
     public Connection getConnection() throws SQLException {
         String url = "jdbc:sqlite:" + paths.databaseFile().toAbsolutePath();
         Connection connection = DriverManager.getConnection(url);
@@ -181,6 +193,9 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * 兼容旧版本数据库：字段不存在时补列，避免用户已有数据因升级丢失。
+     */
     private void addColumnIfMissing(Connection connection, String tableName, String columnName, String columnDefinition)
             throws SQLException {
         if (columnExists(connection, tableName, columnName)) {
@@ -203,6 +218,9 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * 设置连接级性能参数，平衡 SQLite 写入性能和桌面应用稳定性。
+     */
     private void configureConnection(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate("PRAGMA synchronous=NORMAL");

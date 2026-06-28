@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Validates query options and delegates event lookup to the repository layer.
+ * 事件检索服务。
+ *
+ * <p>负责规范化查询条件、限制返回规模、缓存查询结果，并将实际 SQL 查询委托给 repository。</p>
  */
 public class EventQueryService {
 
@@ -37,6 +39,9 @@ public class EventQueryService {
         this.importBatchRepository = new ImportBatchRepository(databaseManager);
     }
 
+    /**
+     * 执行多条件事件检索，结果用于事件查询表格。
+     */
     public List<EventQueryResult> search(EventQueryCriteria criteria) {
         EventQueryCriteria normalized = normalize(criteria);
         SearchCacheKey key = new SearchCacheKey(cacheVersion(), normalized);
@@ -53,6 +58,9 @@ public class EventQueryService {
         return results;
     }
 
+    /**
+     * 统计检索命中总数，和表格结果分开缓存以便界面快速显示规模。
+     */
     public int count(EventQueryCriteria criteria) {
         EventQueryCriteria normalized = normalize(criteria);
         CountCacheKey key = new CountCacheKey(cacheVersion(), normalized);
@@ -69,6 +77,9 @@ public class EventQueryService {
         return count;
     }
 
+    /**
+     * 查询事件根代码分布，用于解释合作/冲突内部结构。
+     */
     public List<EventSubtypeStat> subtypeDistribution(EventQueryCriteria criteria, EventType eventType) {
         EventQueryCriteria normalized = normalize(criteria);
         SubtypeCacheKey key = new SubtypeCacheKey(cacheVersion(), normalized, eventType);

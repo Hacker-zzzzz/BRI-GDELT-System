@@ -1,7 +1,9 @@
 package edu.course.brigdelt.domain;
 
 /**
- * High-level metrics for the home dashboard.
+ * 首页仪表盘核心汇总指标。
+ *
+ * <p>用于快速展示国家配置数量、事件总量、合作/冲突结构、导入批次和总体语调。</p>
  */
 public record DashboardSummary(
         int countryCount,

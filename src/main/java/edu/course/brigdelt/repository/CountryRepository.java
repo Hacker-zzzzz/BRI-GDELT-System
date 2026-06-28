@@ -14,7 +14,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Persists country configuration into SQLite.
+ * 国家配置仓储。
+ *
+ * <p>负责将一带一路国家配置写入 SQLite，并为导入过滤、下拉框、区域分析提供国家清单。</p>
  */
 public class CountryRepository {
 
@@ -24,6 +26,9 @@ public class CountryRepository {
         this.databaseManager = databaseManager;
     }
 
+    /**
+     * 批量写入或更新国家配置，保证配置文件调整后数据库能同步刷新。
+     */
     public void upsertAll(List<Country> countries) {
         String sql = """
                 INSERT INTO countries (
@@ -93,6 +98,9 @@ public class CountryRepository {
         }
     }
 
+    /**
+     * 查询全部 CAMEO 国家代码，用于 GDELT 导入阶段快速判断事件是否命中沿线国家。
+     */
     public Set<String> findAllCameoCodes() {
         String sql = "SELECT cameo_code FROM countries WHERE cameo_code IS NOT NULL AND TRIM(cameo_code) <> ''";
         try (Connection connection = databaseManager.getConnection();
@@ -108,6 +116,9 @@ public class CountryRepository {
         }
     }
 
+    /**
+     * 查询完整国家列表，用于 UI 下拉框、地图和分析模块。
+     */
     public List<Country> findAllCountries() {
         String sql = """
                 SELECT cameo_code, iso_code, name_cn, name_en, region, latitude, longitude,

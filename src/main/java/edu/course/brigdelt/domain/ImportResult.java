@@ -3,7 +3,7 @@ package edu.course.brigdelt.domain;
 import java.util.List;
 
 /**
- * Summary of one GDELT import batch.
+ * 单次 GDELT 文件导入结果，汇总成功、跳过、入库数量和错误样例。
  */
 public record ImportResult(
         String fileName,

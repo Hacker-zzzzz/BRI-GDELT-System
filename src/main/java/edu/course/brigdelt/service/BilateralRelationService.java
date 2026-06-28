@@ -15,7 +15,9 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Provides validated bilateral relation analysis queries.
+ * 双边关系分析服务。
+ *
+ * <p>默认以中国 CHN 为一端，对输入国家代码做规范化，并缓存双边摘要、明细和月度趋势。</p>
  */
 public class BilateralRelationService {
 
@@ -38,6 +40,9 @@ public class BilateralRelationService {
         this.importBatchRepository = new ImportBatchRepository(databaseManager);
     }
 
+    /**
+     * 汇总两个国家之间的合作、冲突和语调指标。
+     */
     public BilateralRelationSummary summarize(String countryA, String countryB) {
         CountryPair pair = normalizePair(countryA, countryB);
         PairCacheKey key = new PairCacheKey(cacheVersion(), pair);
@@ -54,6 +59,9 @@ public class BilateralRelationService {
         return summary;
     }
 
+    /**
+     * 查询双边关系事件明细，用于表格追溯具体 GDELT 记录。
+     */
     public List<EventQueryResult> events(String countryA, String countryB, int limit) {
         CountryPair pair = normalizePair(countryA, countryB);
         int safeLimit = limit <= 0 ? DEFAULT_EVENT_LIMIT : Math.min(limit, 1_000);
@@ -71,6 +79,9 @@ public class BilateralRelationService {
         return results;
     }
 
+    /**
+     * 查询双边月度趋势，用于观察关系随时间变化。
+     */
     public List<MonthlyTrendPoint> monthlyTrend(String countryA, String countryB) {
         CountryPair pair = normalizePair(countryA, countryB);
         PairCacheKey key = new PairCacheKey(cacheVersion(), pair);

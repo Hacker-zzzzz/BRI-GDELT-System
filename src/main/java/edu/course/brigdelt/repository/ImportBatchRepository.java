@@ -9,7 +9,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 /**
- * Persists GDELT file import batch summaries.
+ * 导入批次仓储，负责记录每个 GDELT 文件的导入结果和错误摘要。
+ *
+ * <p>这些记录用于启动自检、导入页面反馈和后续排查数据质量问题。</p>
  */
 public class ImportBatchRepository {
 
@@ -19,6 +21,9 @@ public class ImportBatchRepository {
         this.databaseManager = databaseManager;
     }
 
+    /**
+     * 持久化导入服务返回的批次结果，保持 UI 层不直接接触数据库字段。
+     */
     public int insert(ImportResult result) {
         return insert(
                 result.fileName(),
@@ -30,6 +35,9 @@ public class ImportBatchRepository {
         );
     }
 
+    /**
+     * 插入一条导入批次记录，记录总行数、成功数、跳过数和状态信息。
+     */
     public int insert(String fileName, int totalRows, int successRows, int skippedRows,
                       ImportBatchStatus status, String message) {
         String sql = """
@@ -56,6 +64,9 @@ public class ImportBatchRepository {
         }
     }
 
+    /**
+     * 统计已记录的导入批次数，用于命令行自检确认数据库表可读。
+     */
     public int countImportBatches() {
         String sql = "SELECT COUNT(*) FROM import_batches";
         try (Connection connection = databaseManager.getConnection();

@@ -1,7 +1,10 @@
 package edu.course.brigdelt.domain;
 
 /**
- * Monthly bilateral trend metrics for table and chart presentation.
+ * 月度趋势点。
+ *
+ * <p>用于折线图和趋势表格，展示某个分析对象在月份维度上的事件数量、
+ * 合作/冲突结构和合作指数变化。</p>
  */
 public record MonthlyTrendPoint(
         String month,

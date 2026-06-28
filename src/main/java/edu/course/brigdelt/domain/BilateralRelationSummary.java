@@ -1,7 +1,7 @@
 package edu.course.brigdelt.domain;
 
 /**
- * Aggregated metrics for an unordered country pair.
+ * 两国关系汇总指标，表示无方向国家对在当前筛选条件下的合作、冲突和情绪统计。
  */
 public record BilateralRelationSummary(
         String countryA,

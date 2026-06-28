@@ -15,7 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Loads aggregated values used by the dashboard page.
+ * 首页仪表盘服务。
+ *
+ * <p>集中加载总览指标、国家热度和日度趋势，并通过数据版本缓存减少重复查询。</p>
  */
 public class DashboardService {
 
@@ -38,6 +40,9 @@ public class DashboardService {
         this.importBatchRepository = new ImportBatchRepository(databaseManager);
     }
 
+    /**
+     * 加载首页总览指标，包括国家数量、事件总量、事件结构和导入批次。
+     */
     public DashboardSummary loadSummary() {
         int countryCount = countryRepository.countCountries();
         int importBatchCount = importBatchRepository.countImportBatches();
@@ -56,6 +61,9 @@ public class DashboardService {
         return summary;
     }
 
+    /**
+     * 查询事件量最高的国家，用于首页柱状图展示热点国家。
+     */
     public List<CountryEventStat> topCountries(int limit) {
         int safeLimit = limit <= 0 ? 8 : limit;
         TopCountriesCacheKey key = new TopCountriesCacheKey(cacheVersion(), safeLimit);
@@ -72,6 +80,9 @@ public class DashboardService {
         return results;
     }
 
+    /**
+     * 查询日度事件趋势，用于首页展示数据时间分布。
+     */
     public List<MonthlyTrendPoint> dailyTrend() {
         CacheVersion key = cacheVersion();
         synchronized (DAILY_TREND_CACHE) {
@@ -88,6 +99,7 @@ public class DashboardService {
     }
 
     private CacheVersion cacheVersion() {
+        // 数据版本随事件数量和导入批次数变化，保证导入后缓存能自动刷新。
         return new CacheVersion(eventRepository.countEvents(), importBatchRepository.countImportBatches());
     }
 

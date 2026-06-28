@@ -105,7 +105,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * Builds the JavaFX desktop UI for the BRI GDELT analysis system.
+ * JavaFX 桌面端主界面组装类。
+ *
+ * <p>本类集中负责页面导航、图表、表格和后台 Task 的装配；数据导入、查询、
+ * 指标计算和导出逻辑下沉到 service/repository 层，避免界面层直接处理业务细节。
+ * 由于课程项目规模有限，当前保留单一 UI 入口，便于演示和答辩说明。</p>
  */
 @SuppressWarnings("unchecked")
 public class MainView {
@@ -132,6 +136,7 @@ public class MainView {
     }
 
     private Parent createHeader() {
+        // 顶部标题栏：展示系统名称、版本语义和启动状态，是演示时的第一视觉入口。
         HBox header = new HBox(16);
         header.getStyleClass().add("app-header");
         header.setAlignment(Pos.CENTER_LEFT);
@@ -234,6 +239,7 @@ public class MainView {
     }
 
     private Parent createNavigation() {
+        // 左侧导航集中列出业务模块，页面内容通过 showPage 按需创建。
         VBox sidebar = new VBox(14);
         sidebar.getStyleClass().add("sidebar");
 
@@ -284,6 +290,7 @@ public class MainView {
     }
 
     private void showPage(PageSpec page) {
+        // 页面按标题缓存，避免切换模块时反复重建图表和重复查询数据库。
         Parent content = pageCache.computeIfAbsent(page.title(), title -> createPageContent(page));
         contentHost.getChildren().setAll(content);
     }
@@ -305,10 +312,12 @@ public class MainView {
     }
 
     private void invalidateDataPageCache() {
+        // 数据导入后清理分析页面缓存，确保后续页面展示最新数据库结果。
         pageCache.keySet().removeIf(title -> !"数据维护".equals(title));
     }
 
     private Parent createDashboardPage(PageSpec page) {
+        // 首页仪表盘汇总全局规模、事件结构、国家热度和日度趋势。
         VBox body = createPageBase(page.title(), page.description());
 
         Label statusText = new Label("正在加载仪表盘数据...");
@@ -384,6 +393,7 @@ public class MainView {
                                Label toneValue, Label dashboardInsight, PieChart typePieChart,
                                BarChart<String, Number> topCountryChart,
                                LineChart<String, Number> dailyTrendChart) {
+        // 仪表盘聚合查询放到后台线程，避免大数据量时阻塞 JavaFX UI 线程。
         Task<DashboardViewData> task = new Task<>() {
             @Override
             protected DashboardViewData call() {
@@ -454,6 +464,7 @@ public class MainView {
     }
 
     private void updateTypePieChart(PieChart chart, DashboardSummary summary) {
+        // 事件类型饼图用于说明合作、冲突和其他事件的结构占比。
         chart.setData(FXCollections.observableArrayList(
                 new PieChart.Data("合作", summary.cooperationEvents()),
                 new PieChart.Data("冲突", summary.conflictEvents()),
@@ -462,6 +473,7 @@ public class MainView {
     }
 
     private void updateTopCountryChart(BarChart<String, Number> chart, List<CountryEventStat> stats) {
+        // 国家热度柱状图只展示 TOP 国家，避免首页图表过于拥挤。
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         for (CountryEventStat stat : stats) {
             series.getData().add(new XYChart.Data<>(stat.countryCode(), stat.eventCount()));
@@ -470,6 +482,7 @@ public class MainView {
     }
 
     private void updateDailyTrendChart(LineChart<String, Number> chart, List<MonthlyTrendPoint> trends) {
+        // 日度趋势用于展示导入样本的时间覆盖和事件波动。
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         for (MonthlyTrendPoint point : trends) {
             series.getData().add(new XYChart.Data<>(point.month(), point.totalEvents()));
@@ -478,6 +491,7 @@ public class MainView {
     }
 
     private void updateRelationshipTrendChart(LineChart<String, Number> chart, List<MonthlyTrendPoint> trends) {
+        // 双边趋势同时展示合作指数、Goldstein 和 AvgTone，便于解释关系变化。
         XYChart.Series<String, Number> cooperation = new XYChart.Series<>();
         cooperation.setName("合作指数");
         XYChart.Series<String, Number> goldstein = new XYChart.Series<>();
@@ -515,6 +529,7 @@ public class MainView {
     }
 
     private void updateGeoScatterChart(ScatterChart<Number, Number> chart, List<GeoEventPoint> points) {
+        // 地理散点按事件类型分组，便于观察合作/冲突事件的空间分布差异。
         XYChart.Series<Number, Number> cooperation = new XYChart.Series<>();
         cooperation.setName("合作");
         XYChart.Series<Number, Number> conflict = new XYChart.Series<>();
@@ -536,6 +551,7 @@ public class MainView {
 
     private String buildDashboardInsight(DashboardSummary summary, List<CountryEventStat> topCountries,
                                          List<MonthlyTrendPoint> dailyTrend) {
+        // 自动生成首页研判文本，帮助答辩时从图表过渡到分析结论。
         if (summary.totalEvents() == 0) {
             return "当前数据库尚无事件记录。完成真实 GDELT 数据导入后，首页将自动汇总事件结构、国家热度和日度趋势。";
         }
@@ -625,6 +641,7 @@ public class MainView {
     }
 
     private Parent createImportPage(PageSpec page) {
+        // 数据维护页面负责选择 GDELT 文件、后台导入和展示错误样例。
         VBox body = createPageBase("GDELT 数据维护工具", page.description());
 
         VBox importBox = new VBox(14);
@@ -702,6 +719,7 @@ public class MainView {
             Task<List<ImportResult>> importTask = new Task<>() {
                 @Override
                 protected List<ImportResult> call() {
+                    // 多文件顺序导入，单个文件失败会体现在对应 ImportResult 中。
                     GdeltImportService importService = new GdeltImportService(new DatabaseManager(paths));
                     List<ImportResult> results = new ArrayList<>();
                     for (int index = 0; index < selectedPaths.size(); index++) {
@@ -772,6 +790,7 @@ public class MainView {
     }
 
     private Parent createBilateralPage() {
+        // 双边关系页面默认以中国为一端，分析中国与沿线国家的合作/冲突结构。
         VBox body = createPageBase("中国与沿线国家双边关系分析", "围绕两个国家之间的 GDELT 事件，展示合作冲突结构、综合态势和月度变化。");
 
         GridPane form = new GridPane();
@@ -840,6 +859,7 @@ public class MainView {
             Task<BilateralViewData> task = new Task<>() {
                 @Override
                 protected BilateralViewData call() {
+                    // 摘要、趋势和明细一次性加载，保证双边页面各组件口径一致。
                     BilateralRelationService service = new BilateralRelationService(new DatabaseManager(paths));
                     return new BilateralViewData(
                             service.summarize(countryA, countryB),
@@ -897,6 +917,7 @@ public class MainView {
     }
 
     private Parent createCooperationAnalysisPage() {
+        // 合作态势页面展示国家合作指数、合作热点和子类型结构。
         VBox body = createPageBase("沿线国家合作态势分析", "按国家聚合 GDELT 事件，综合合作占比、合作相对规模、Goldstein、媒体语调和关注度形成合作指数。");
 
         Label statusText = new Label("正在加载合作态势排名...");
@@ -952,6 +973,7 @@ public class MainView {
         Task<CooperationAnalysisViewData> task = new Task<>() {
             @Override
             protected CooperationAnalysisViewData call() {
+                // 排名和热点来自同一 AnalysisService，便于解释同一套合作指标体系。
                 AnalysisService service = new AnalysisService(new DatabaseManager(paths));
                 return new CooperationAnalysisViewData(
                         service.cooperationRankings(AnalysisService.DEFAULT_RANK_LIMIT),
@@ -992,6 +1014,7 @@ public class MainView {
     }
 
     private Parent createRiskAssessmentPage() {
+        // 风险评估页面展示冲突风险排名、风险热点和风险等级。
         VBox body = createPageBase("沿线国家风险评估", "按国家聚合冲突事件、冲突占比、Goldstein 和媒体语调，形成可用于风险比较和重点跟踪的风险指数。");
 
         Label statusText = new Label("正在加载风险评估排名...");
@@ -1035,6 +1058,7 @@ public class MainView {
         Task<RiskAssessmentViewData> task = new Task<>() {
             @Override
             protected RiskAssessmentViewData call() {
+                // 风险排名和风险热点共用风险指数口径，避免页面指标解释不一致。
                 AnalysisService service = new AnalysisService(new DatabaseManager(paths));
                 return new RiskAssessmentViewData(
                         service.riskRankings(AnalysisService.DEFAULT_RANK_LIMIT),
@@ -1071,6 +1095,7 @@ public class MainView {
     }
 
     private Parent createRegionAnalysisPage() {
+        // 区域分析页面将国家聚合到子区域层面，便于比较区域差异。
         VBox body = createPageBase("一带一路子区域对比分析", "按国家配置中的子区域聚合事件量、合作、冲突、媒体语调和风险指标。");
 
         Label statusText = new Label("正在加载区域汇总...");
@@ -1115,6 +1140,7 @@ public class MainView {
         Task<List<RegionSummary>> task = new Task<>() {
             @Override
             protected List<RegionSummary> call() {
+                // 区域汇总由数据库侧聚合，UI 只负责展示区域对比图和雷达图。
                 return new AnalysisService(new DatabaseManager(paths)).regionSummaries();
             }
         };
@@ -1144,6 +1170,7 @@ public class MainView {
     }
 
     private Parent createClusterAnalysisPage() {
+        // 聚类页面将国家分成可解释类型，用于答辩展示“国家画像”。
         VBox body = createPageBase("沿线国家 K-Means 聚类分析", "基于合作指数、风险指数、冲突占比、Goldstein、AvgTone 和事件量归一化特征，将国家分为四类。");
 
         Label statusText = new Label("正在运行聚类分析...");
@@ -1164,6 +1191,7 @@ public class MainView {
         Task<List<CountryClusterResult>> task = new Task<>() {
             @Override
             protected List<CountryClusterResult> call() {
+                // 聚类计算在后台执行，避免 K-Means 和数据聚合阻塞界面。
                 return new AnalysisService(new DatabaseManager(paths)).countryClusters();
             }
         };
@@ -1190,6 +1218,7 @@ public class MainView {
     }
 
     private Parent createInteractiveMapPage() {
+        // 交互式地图支持事件类型、国家和时间窗口筛选，是空间分布展示的核心页面。
         VBox body = createPageBase("一带一路事件空间交互专题地图", "基于 GDELT ActionGeo 经纬度字段，支持缩放、平移、图层叠加和事件点位联动。");
 
         Label statusText = new Label("正在加载地理事件点位...");
@@ -1293,6 +1322,7 @@ public class MainView {
         Runnable[] applyCurrentFrame = new Runnable[1];
 
         applyCurrentFrame[0] = () -> {
+            // 根据当前时间窗口从缓存序列中取点，地图和表格保持同一批数据。
             String window = windowBox.getValue() == null ? "30日" : windowBox.getValue();
             if (availableDates.isEmpty()) {
                 items.clear();
@@ -1324,6 +1354,7 @@ public class MainView {
         };
 
         preloadMapSeries[0] = () -> {
+            // 筛选条件变化时重新预加载时间序列，后续播放只读内存缓存。
             if (playback[0] != null) {
                 playback[0].stop();
                 playButton.setText("播放");
@@ -1394,6 +1425,7 @@ public class MainView {
         };
 
         Runnable syncTableAndInsight = () -> {
+            // 地图当前帧变化后，同步表格明细和空间研判文字。
             List<GeoEventPoint> currentPoints = mapPane.pointsSnapshot();
             items.setAll(currentPoints);
             insightText.setText(buildMapInsight(currentPoints));
@@ -1423,6 +1455,7 @@ public class MainView {
             syncTableAndInsight.run();
         });
         playButton.setOnAction(event -> {
+            // 播放按钮按时间轴逐日推进，用于展示事件空间分布随时间变化。
             if (playback[0] != null && playback[0].getStatus() == Timeline.Status.RUNNING) {
                 playback[0].stop();
                 playButton.setText("播放");
@@ -1482,6 +1515,7 @@ public class MainView {
     }
 
     private Set<String> selectedMapEventTypes(CheckBox cooperationLayer, CheckBox conflictLayer, CheckBox otherLayer) {
+        // 将图层勾选状态转换为 repository 可识别的 EventType 过滤条件。
         Set<String> selectedTypes = new HashSet<>();
         if (cooperationLayer.isSelected()) {
             selectedTypes.add(EventType.COOPERATION.name());
@@ -1499,6 +1533,7 @@ public class MainView {
     }
 
     private LocalDate mapWindowStart(String window, List<LocalDate> availableDates, int selectedIndex) {
+        // 根据“单日/7日/30日/全部”窗口计算当前帧的起始日期。
         if (availableDates == null || availableDates.isEmpty()) {
             return null;
         }
@@ -1527,6 +1562,7 @@ public class MainView {
 
     private List<GeoEventPoint> mapCachedWindowPoints(Map<LocalDate, List<GeoEventPoint>> series,
                                                       LocalDate startDate, LocalDate endDate, int limit) {
+        // 从预加载序列中按窗口抽取点位，避免每次拖动时间轴都访问数据库。
         if (series == null || series.isEmpty() || startDate == null || endDate == null) {
             return List.of();
         }
@@ -1619,6 +1655,7 @@ public class MainView {
     }
 
     private Parent createExportPage() {
+        // 导出页面生成报告和数据文件，供提交材料、答辩展示和后续复核使用。
         VBox body = createPageBase("分析结果导出", "生成系统分析报告和国家排名数据文件，便于后续归档、复核和二次分析。");
 
         HBox actionRow = new HBox(12);
@@ -1647,6 +1684,7 @@ public class MainView {
         resultArea.setPrefRowCount(10);
 
         exportButton.setOnAction(event -> {
+            // 导出可能涉及多个文件写入，放到后台线程避免界面卡顿。
             Task<ExportResult> task = new Task<>() {
                 @Override
                 protected ExportResult call() {
@@ -1679,6 +1717,7 @@ public class MainView {
     }
 
     private Parent createEventQueryPage(PageSpec page) {
+        // 事件查询页面提供多条件检索，是从宏观统计追溯到原始事件的入口。
         VBox body = createPageBase(page.title(), page.description());
 
         GridPane form = new GridPane();
@@ -1743,6 +1782,7 @@ public class MainView {
         subtypeCharts.getStyleClass().add("chart-row");
 
         searchButton.setOnAction(event -> {
+            // 查询前先校验国家输入是否能匹配配置表，减少无效 CAMEO 代码导致的空结果。
             EventTypeOption selectedType = eventTypeBox.getSelectionModel().getSelectedItem();
             if (hasUnmatchedCountryInput(anyCountryField)
                     || hasUnmatchedCountryInput(actor1Field)
@@ -1763,6 +1803,7 @@ public class MainView {
             Task<EventQueryViewData> queryTask = new Task<>() {
                 @Override
                 protected EventQueryViewData call() {
+                    // 明细和合作/冲突子类型分布一起查询，保证图表与表格使用同一筛选条件。
                     EventQueryService service = new EventQueryService(new DatabaseManager(paths));
                     return new EventQueryViewData(
                             service.search(criteria),
@@ -1847,6 +1888,7 @@ public class MainView {
     }
 
     private ComboBox<CountryOption> createCountryCodeComboBox(boolean includeChina) {
+        // 国家选择框支持 CAMEO 代码、中文名、英文名模糊匹配，方便课堂演示快速输入。
         ComboBox<CountryOption> comboBox = new ComboBox<>();
         comboBox.setEditable(true);
         comboBox.setPromptText("可输入代码、中文名或英文名");
@@ -1897,6 +1939,7 @@ public class MainView {
             }
         });
         comboBox.getEditor().textProperty().addListener((observable, oldValue, newValue) -> {
+            // 输入时实时过滤候选项；若没有选择候选，后续仍可按三位代码手动解析。
             if (comboBox.getSelectionModel().getSelectedItem() != null
                     && comboBox.getSelectionModel().getSelectedItem().code().equals(newValue)) {
                 return;
@@ -1923,6 +1966,7 @@ public class MainView {
         try {
             return new CountryRepository(new DatabaseManager(paths)).findRegions();
         } catch (RuntimeException exception) {
+            // UI 降级策略：数据库未初始化或临时不可用时，保留页面可打开。
             return List.of();
         }
     }
@@ -1949,11 +1993,13 @@ public class MainView {
                     ))
                     .toList();
         } catch (RuntimeException exception) {
+            // UI 降级策略：国家下拉加载失败时，仍允许用户手动输入 CAMEO 国家代码。
             return List.of();
         }
     }
 
     private String extractCountryCode(ComboBox<CountryOption> comboBox) {
+        // 优先使用下拉选中项；如果用户手输，则规范化为大写三位国家代码。
         CountryOption selected = comboBox.getSelectionModel().getSelectedItem();
         String rawText = comboBox.getEditor().getText();
         if ((rawText == null || rawText.isBlank()) && selected != null) {
@@ -2401,6 +2447,7 @@ public class MainView {
     }
 
     private void updateRegionChart(BarChart<String, Number> chart, List<RegionSummary> regions) {
+        // 区域柱状图并列展示合作指数和风险指数，便于横向比较。
         XYChart.Series<String, Number> cooperation = new XYChart.Series<>();
         cooperation.setName("合作指数");
         XYChart.Series<String, Number> risk = new XYChart.Series<>();
@@ -2414,6 +2461,7 @@ public class MainView {
 
     private void updateCooperationRankingChart(BarChart<String, Number> chart, HBox legend,
                                                List<CooperationScore> scores) {
+        // 合作排名柱状图按区域着色，排名和区域归属同时可见。
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("合作指数");
         Map<String, String> colorsByRegion = regionColors(scores);
@@ -2463,6 +2511,7 @@ public class MainView {
     }
 
     private void updateSubtypePieChart(PieChart chart, List<EventSubtypeStat> stats) {
+        // 子类型饼图解释合作/冲突大类内部由哪些 EventRoot 贡献。
         List<PieChart.Data> data = stats.stream()
                 .filter(stat -> stat.eventCount() > 0)
                 .map(stat -> new PieChart.Data(stat.displayLabel(), stat.eventCount()))
@@ -2471,6 +2520,7 @@ public class MainView {
     }
 
     private void updateHotspotChart(BarChart<String, Number> chart, List<CooperationHotspot> hotspots) {
+        // 合作热点图展示合作指数环比增量，突出近期升温国家。
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("环比增长");
         for (CooperationHotspot hotspot : hotspots) {
@@ -2480,6 +2530,7 @@ public class MainView {
     }
 
     private void updateRiskHotspotChart(BarChart<String, Number> chart, List<RiskHotspot> hotspots) {
+        // 风险热点图展示风险指数环比增量，突出近期风险上升国家。
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("环比增长");
         for (RiskHotspot hotspot : hotspots) {
@@ -2498,6 +2549,7 @@ public class MainView {
     }
 
     private void updateRegionRadarChart(Canvas canvas, List<RegionSummary> regions) {
+        // 雷达图把区域多维指标压缩到一张图，适合答辩中说明区域差异。
         GraphicsContext graphics = canvas.getGraphicsContext2D();
         double width = canvas.getWidth();
         double height = canvas.getHeight();
@@ -2529,6 +2581,7 @@ public class MainView {
     }
 
     private void drawRadarGrid(GraphicsContext graphics, String[] axes, double centerX, double centerY, double radius) {
+        // 绘制雷达图网格和维度标签，为区域多边形提供统一坐标系。
         graphics.setStroke(Color.web("#d8e0e8"));
         graphics.setLineWidth(1);
         for (int level = 1; level <= 4; level++) {
@@ -2557,6 +2610,7 @@ public class MainView {
 
     private void drawRadarRegions(GraphicsContext graphics, List<RegionSummary> regions, int axisCount,
                                   double centerX, double centerY, double radius) {
+        // 每个区域绘制一个半透明多边形，面积和形状反映综合特征。
         double maxEvents = Math.max(1, regions.stream().mapToInt(RegionSummary::totalEvents).max().orElse(1));
         double maxMentions = Math.max(1, regions.stream().mapToInt(RegionSummary::totalMentions).max().orElse(1));
         for (int regionIndex = 0; regionIndex < regions.size(); regionIndex++) {
@@ -3072,6 +3126,7 @@ public class MainView {
         }
 
         private void draw() {
+            // 地图绘制入口：按当前缩放、平移和图层状态重绘所有可视元素。
             double width = canvas.getWidth();
             double height = canvas.getHeight();
             if (width <= 0 || height <= 0) {
@@ -3095,10 +3150,12 @@ public class MainView {
         }
 
         private void drawCountryThemeLayer(GraphicsContext graphics) {
+            // 国家专题层根据合作指标为沿线国家区域着色，表现国家层面的合作热度。
             countryThematicLayer.draw(graphics, countryMetrics, this::screenX, this::screenY);
         }
 
         private void drawBaseMap(GraphicsContext graphics, double width, double height) {
+            // 底图绘制陆地轮廓、经纬网和重点区域框，给事件点提供地理参照。
             graphics.setFill(Color.web("#f8fbfd"));
             graphics.fillRect(0, 0, width, height);
             double left = mapLeft();
@@ -3193,6 +3250,7 @@ public class MainView {
         }
 
         private void drawHeatLayer(GraphicsContext graphics) {
+            // 热度层用经纬度网格聚合点位密度，不区分具体事件类型。
             int lonBuckets = 36;
             int latBuckets = 18;
             int[][] buckets = new int[lonBuckets][latBuckets];
@@ -3226,6 +3284,7 @@ public class MainView {
         }
 
         private void drawRiskLayer(GraphicsContext graphics) {
+            // 风险层突出负向语调或负向 Goldstein 的冲突事件点。
             for (GeoEventPoint point : points) {
                 if (!isVisibleType(point) || !isRiskPoint(point)) {
                     continue;
@@ -3240,6 +3299,7 @@ public class MainView {
         }
 
         private void drawEventPoints(GraphicsContext graphics) {
+            // 事件点按合作、冲突、其他三类使用不同颜色和形状绘制。
             for (GeoEventPoint point : points) {
                 if (!isVisibleType(point)) {
                     continue;
@@ -3264,6 +3324,7 @@ public class MainView {
         }
 
         private void drawMapHud(GraphicsContext graphics, double width, double height) {
+            // HUD 展示图例、缩放比例和点位数量，便于演示时解释地图状态。
             graphics.setFill(Color.web("#ffffff", 0.86));
             graphics.fillRoundRect(14, 14, 228, 176, 8, 8);
             graphics.setStroke(Color.web("#d8e0e8"));
@@ -3374,6 +3435,7 @@ public class MainView {
         }
 
         private void drawPointCardCallout(GraphicsContext graphics) {
+            // 详情卡片用折线连接到事件点，避免用户不知道卡片对应哪个点位。
             if (selectedCardPoint == null) {
                 return;
             }
@@ -3411,6 +3473,7 @@ public class MainView {
         }
 
         private void showPointCard(GeoEventPoint point) {
+            // 用户点击点位后弹出简要事件卡片，表格也会同步定位到该事件。
             selectedCardPoint = point;
             hoverLabel.setVisible(false);
             cardWidth = 330;
@@ -3442,6 +3505,7 @@ public class MainView {
         }
 
         private boolean isRiskPoint(GeoEventPoint point) {
+            // 风险点不只看冲突类型，也考虑明显负向语调和负向 Goldstein。
             return point.eventType() == EventType.CONFLICT || point.avgTone() <= -3.0 || point.goldsteinScale() <= -2.0;
         }
 
@@ -3468,6 +3532,7 @@ public class MainView {
         }
 
         private void constrainPan() {
+            // 限制平移范围，避免用户把地图拖出视野后无法找回。
             double maxX = Math.max(0, (zoom - MIN_ZOOM) * mapWidth() / 2.0);
             double maxY = Math.max(0, (zoom - MIN_ZOOM) * mapHeight() / 2.0);
             panX = clamp(panX, -maxX, maxX);

@@ -27,7 +27,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Imports tab-separated GDELT event files after country filtering and coordinate cleanup.
+ * GDELT 事件导入服务，负责文件校验、解析、过滤、清洗和批量入库。
+ *
+ * <p>导入流程支持 CSV/TSV/ZIP，按项目需要解析 GDELT 字段，筛选命中配置国家的
+ * 事件，并将非法经纬度清理为空值。批量写入可以减少 SQLite 频繁提交带来的性能
+ * 开销，适合一次导入较多 GDELT 文件的演示场景。</p>
  */
 public class GdeltImportService {
 
@@ -48,12 +52,16 @@ public class GdeltImportService {
         this.importBatchRepository = new ImportBatchRepository(databaseManager);
     }
 
+    /**
+     * 导入单个 GDELT 文件，统一处理普通文本和 ZIP 压缩包。
+     */
     public ImportResult importFile(Path file) {
         Instant startedAt = Instant.now();
         ImportCounters counters = new ImportCounters(fileName(file));
         List<GdeltEvent> pendingEvents = new ArrayList<>(BATCH_SIZE);
 
         try {
+            // 先做文件类型和存在性校验，避免后台任务进入半导入状态。
             validateFile(file);
             Set<String> countryCodes = countryRepository.findAllCameoCodes();
             if (countryCodes.isEmpty()) {
@@ -78,6 +86,9 @@ public class GdeltImportService {
         return finish(counters, startedAt);
     }
 
+    /**
+     * 逐个读取 ZIP 内部条目，复用普通文本导入逻辑处理每个 GDELT 文件。
+     */
     private void importZip(Path file, Set<String> countryCodes, ImportCounters counters, List<GdeltEvent> pendingEvents)
             throws IOException {
         try (ZipInputStream zipInputStream = new ZipInputStream(Files.newInputStream(file), StandardCharsets.UTF_8)) {
@@ -93,6 +104,9 @@ public class GdeltImportService {
         }
     }
 
+    /**
+     * 逐行解析 GDELT 数据：解析失败、国家不匹配的行都会计入跳过统计。
+     */
     private void importReader(BufferedReader reader, String sourceFile, Set<String> countryCodes,
                               ImportCounters counters, List<GdeltEvent> pendingEvents) throws IOException {
         String line;
@@ -105,6 +119,7 @@ public class GdeltImportService {
                 continue;
             }
 
+            // 清洗后再判断国家命中，保证入库数据中的地图字段始终可控。
             GdeltEvent cleanedEvent = cleanCoordinates(parseResult.event().orElseThrow());
             if (!matchesConfiguredCountry(cleanedEvent, countryCodes)) {
                 counters.skippedRows++;
@@ -120,12 +135,18 @@ public class GdeltImportService {
         }
     }
 
+    /**
+     * 达到批量阈值后写入数据库，减少 SQLite 单行提交的性能开销。
+     */
     private int flush(List<GdeltEvent> pendingEvents) {
         int insertedRows = gdeltEventRepository.insertIgnoreBatch(pendingEvents);
         pendingEvents.clear();
         return insertedRows;
     }
 
+    /**
+     * 清理非法经纬度：超出地球范围的坐标置空，避免地图绘制异常。
+     */
     private GdeltEvent cleanCoordinates(GdeltEvent event) {
         Double latitude = isLatitudeValid(event.actionGeoLat()) ? event.actionGeoLat() : null;
         Double longitude = isLongitudeValid(event.actionGeoLon()) ? event.actionGeoLon() : null;
@@ -150,6 +171,9 @@ public class GdeltImportService {
         );
     }
 
+    /**
+     * 只保留 Actor1 或 Actor2 命中配置国家的事件，聚焦一带一路沿线分析范围。
+     */
     private boolean matchesConfiguredCountry(GdeltEvent event, Set<String> countryCodes) {
         return containsCode(countryCodes, event.actor1CountryCode())
                 || containsCode(countryCodes, event.actor2CountryCode());
@@ -167,6 +191,9 @@ public class GdeltImportService {
         return longitude == null || (longitude >= -180.0 && longitude <= 180.0);
     }
 
+    /**
+     * 校验导入文件，只允许课程数据来源中常见的 CSV、TSV 和 ZIP。
+     */
     private void validateFile(Path file) {
         if (file == null) {
             throw new IllegalArgumentException("导入文件不能为空。");
@@ -184,6 +211,9 @@ public class GdeltImportService {
         return file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".zip");
     }
 
+    /**
+     * 汇总导入结果并写入导入批次表，便于首页和报告展示导入历史。
+     */
     private ImportResult finish(ImportCounters counters, Instant startedAt) {
         ImportBatchStatus status = statusOf(counters);
         ImportResult result = new ImportResult(
@@ -257,6 +287,7 @@ public class GdeltImportService {
         }
 
         private void addSample(String message) {
+            // 只保留少量错误样例，避免大文件导入时错误文本占用过多内存。
             if (errorSamples.size() < MAX_ERROR_SAMPLES) {
                 errorSamples.add(message);
             }
