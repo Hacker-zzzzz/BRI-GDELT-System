@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fcfb"/>
+      <stop offset="100%" stop-color="#eef5fb"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#102a43" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto">
+      <path d="M 0 0 L 14 7 L 0 14 z" fill="#168aad"/>
+    </marker>
+    <style>
+      .title { font: 700 42px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #123047; }
+      .subtitle { font: 400 22px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #526675; }
+      .node-title { font: 700 22px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #102a43; text-anchor: middle; }
+      .node-text { font: 400 17px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #4d6272; text-anchor: middle; }
+      .summary { font: 700 25px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #123047; }
+      .summary-text { font: 400 20px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #40576a; }
+      .icon { font: 700 34px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #ffffff; text-anchor: middle; }
+      .small { font: 400 17px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #5c6f7d; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <text x="80" y="90" class="title">数据处理流程</text>
+  <text x="80" y="128" class="subtitle">从 GDELT 原始文件到 SQLite 入库、指标分析、图表地图展示和结果导出</text>
+
+  <g transform="translate(75 245)">
+    <rect x="0" y="0" width="165" height="175" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="82.5" cy="48" r="30" fill="#1b4965"/>
+    <text x="82.5" y="60" class="icon">1</text>
+    <text x="82.5" y="104" class="node-title">GDELT 文件</text>
+    <text x="82.5" y="137" class="node-text">zip / csv / tsv</text>
+    <text x="82.5" y="162" class="node-text">原始事件数据</text>
+  </g>
+
+  <line x1="250" y1="332" x2="313" y2="332" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(325 245)">
+    <rect x="0" y="0" width="165" height="175" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="82.5" cy="48" r="30" fill="#168aad"/>
+    <text x="82.5" y="60" class="icon">2</text>
+    <text x="82.5" y="104" class="node-title">字段映射</text>
+    <text x="82.5" y="137" class="node-text">GdeltFieldMapper</text>
+    <text x="82.5" y="162" class="node-text">固定字段下标</text>
+  </g>
+
+  <line x1="500" y1="332" x2="563" y2="332" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(575 245)">
+    <rect x="0" y="0" width="165" height="175" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="82.5" cy="48" r="30" fill="#34a0a4"/>
+    <text x="82.5" y="60" class="icon">3</text>
+    <text x="82.5" y="104" class="node-title">安全解析</text>
+    <text x="82.5" y="137" class="node-text">GdeltLineParser</text>
+    <text x="82.5" y="162" class="node-text">坏行跳过</text>
+  </g>
+
+  <line x1="750" y1="332" x2="813" y2="332" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(825 245)">
+    <rect x="0" y="0" width="165" height="175" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="82.5" cy="48" r="30" fill="#52b788"/>
+    <text x="82.5" y="60" class="icon">4</text>
+    <text x="82.5" y="104" class="node-title">清洗过滤</text>
+    <text x="82.5" y="137" class="node-text">国家配置命中</text>
+    <text x="82.5" y="162" class="node-text">经纬度校验</text>
+  </g>
+
+  <line x1="1000" y1="332" x2="1063" y2="332" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(1075 245)">
+    <rect x="0" y="0" width="165" height="175" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="82.5" cy="48" r="30" fill="#3a86ff"/>
+    <text x="82.5" y="60" class="icon">5</text>
+    <text x="82.5" y="104" class="node-title">批量入库</text>
+    <text x="82.5" y="137" class="node-text">SQLite</text>
+    <text x="82.5" y="162" class="node-text">INSERT OR IGNORE</text>
+  </g>
+
+  <line x1="1250" y1="332" x2="1313" y2="332" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(1325 245)">
+    <rect x="0" y="0" width="165" height="175" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="82.5" cy="48" r="30" fill="#5e60ce"/>
+    <text x="82.5" y="60" class="icon">6</text>
+    <text x="82.5" y="104" class="node-title">统计聚合</text>
+    <text x="82.5" y="137" class="node-text">SQL + Service</text>
+    <text x="82.5" y="162" class="node-text">查询与指标</text>
+  </g>
+
+  <path d="M 1407 430 C 1407 520 1195 520 1195 585" fill="none" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(960 590)">
+    <rect x="0" y="0" width="235" height="170" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="48" cy="50" r="30" fill="#f77f00"/>
+    <text x="48" y="62" class="icon">7</text>
+    <text x="143" y="62" class="node-title">分析展示</text>
+    <text x="143" y="101" class="node-text">合作指数 / 风险指数</text>
+    <text x="143" y="129" class="node-text">图表 / 表格 / 地图</text>
+  </g>
+
+  <line x1="950" y1="675" x2="815" y2="675" stroke="#168aad" stroke-width="5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(575 590)">
+    <rect x="0" y="0" width="235" height="170" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+    <circle cx="48" cy="50" r="30" fill="#d62828"/>
+    <text x="48" y="62" class="icon">8</text>
+    <text x="143" y="62" class="node-title">结果导出</text>
+    <text x="143" y="101" class="node-text">TXT 汇总报告</text>
+    <text x="143" y="129" class="node-text">CSV / XLSX 文件</text>
+  </g>
+
+  <rect x="80" y="575" width="400" height="190" rx="20" fill="#ffffff" filter="url(#shadow)"/>
+  <text x="115" y="630" class="summary">核心闭环</text>
+  <text x="115" y="677" class="summary-text">导入 -> 清洗 -> 入库 -> 查询</text>
+  <text x="115" y="714" class="summary-text">-> 分析 -> 可视化 -> 导出</text>
+
+  <text x="80" y="846" class="small">答辩讲解重点：GDELT 文件无表头且字段多，系统通过字段映射、安全解析、国家过滤和批量入库保证数据质量，再基于 SQLite 聚合生成分析结果。</text>
+</svg>
